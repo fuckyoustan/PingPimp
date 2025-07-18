@@ -13,7 +13,7 @@ Boosts all the core TCP/IP params, buffer sizes, and queue handling full beast m
 Forces DNS to use Cloudflare (1.1.1.1) by default.
 
 📡 **Congestion Control Selector**  
-Supports modern congestion control like BBR2, BBR, Cubic, etc — auto-picked if supported.
+Supports modern congestion control like BBR2, BBR, Cubic, etc.
 
 🔥 **IPv6, ARP, and Neigh Tuning**  
 Cleans up neighbor tables, delays, and secures network stack against unnecessary traffic.
