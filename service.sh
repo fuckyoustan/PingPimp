@@ -1,13 +1,13 @@
 #!/system/bin/sh
 
-until [ "$(getprop sys.boot_completed)" = "1" ]; do
-    sleep 2
+while [ -z "$(getprop sys.boot_completed)" ]; do
+	sleep 1
 done
 
 pimp() {
-    local path="$1"
+    local file="$1"
     local value="$2"
-    [ -f "$path" ] && chmod +w "$path" 2>/dev/null && echo "$value" > "$path"
+    [ -f "$file" ] && ( [ -w "$file" ] || chmod +w "$file" 2>/dev/null ) && echo "$value" > "$file"
 }
 
 # Disable HTTP Proxy
