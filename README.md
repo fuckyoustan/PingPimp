@@ -6,19 +6,19 @@
 
 ## ✨ Features
 
-🔧 **Aggressive Network Tweaks**  
+- 🔧 **Aggressive Network Tweaks**  
 Boosts all the core TCP/IP params, buffer sizes, and queue handling full beast mode.
 
-🌐 **DNS Redirect**  
+- 🌐 **DNS Redirect**  
 Forces DNS to use Cloudflare (1.1.1.1) by default.
 
-📡 **Congestion Control Selector**  
+- 📡 **Congestion Control Selector**  
 Supports modern congestion control like BBR2, BBR, Cubic, etc.
 
-🔥 **IPv6, ARP, and Neigh Tuning**  
+- 🔥 **IPv6, ARP, and Neigh Tuning**  
 Cleans up neighbor tables, delays, and secures network stack against unnecessary traffic.
 
-🧼 **WLAN Log Cleaner**  
+- 🧼 **WLAN Log Cleaner**  
 Auto-deletes unnecessary logs for cleaner, faster WiFi behavior.
 
 ## 📦 Installation
