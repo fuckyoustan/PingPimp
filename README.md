@@ -1,6 +1,6 @@
 ![banner](https://raw.githubusercontent.com/fuckyoustan/PingPimp/refs/heads/main/Banner.jpg)
 
-**PingPimp** is your go to Magisk module if you're tired of lag, high ping, and sluggish networks. This bad boy goes deep into your Android's TCP/IP stack and slaps your connection into shape aggressively, smartly, and smoothly.
+If your network is trippin' with lag and high ping, you need **PingPimp**. This beast gets all up in your Android's TCP/IP guts and slaps your connection into shape aggressively, smartly, and smooth AF.
 
 ## ✨ Features
 
