@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PingPimp - Your Network's Best Friend</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+    <style>
+        :root {
+            /* Light Theme - Material You */
+            --md-primary: #6750a4;
+            --md-on-primary: #ffffff;
+            --md-primary-container: #eaddff;
+            --md-on-primary-container: #21005e;
+            --md-secondary: #625b71;
+            --md-on-secondary: #ffffff;
+            --md-secondary-container: #e8def8;
+            --md-on-secondary-container: #1e192b;
+            --md-tertiary: #7d5260;
+            --md-on-tertiary: #ffffff;
+            --md-tertiary-container: #ffd8e4;
+            --md-on-tertiary-container: #31111d;
+            --md-surface: #fdf7ff;
+            --md-on-surface: #1d1b20;
+            --md-surface-variant: #e7e0ec;
+            --md-on-surface-variant: #49454f;
+            --md-outline: #79747e;
+            --md-outline-variant: #cac4d0;
+            --md-success: #006d3c;
+            --md-error: #ba1a1a;
+            --md-background: linear-gradient(135deg, #fef7ff 0%, #f3eeff 50%, #eaddff 100%);
+            --md-card-bg: rgba(254, 247, 255, 0.8);
+            --md-shadow: 0 2px 24px rgba(103, 80, 164, 0.08);
+            --md-shadow-hover: 0 8px 40px rgba(103, 80, 164, 0.12);
+            --nav-height: 80px;
+            --md-nav-bg: #f3edfa;
+            --md-nav-active-indicator: var(--md-primary-container);
+        }
+
+        [data-theme="dark"] {
+            --md-primary: #d0bcff;
+            --md-on-primary: #381e72;
+            --md-primary-container: #4f378b;
+            --md-on-primary-container: #eaddff;
+            --md-secondary: #ccc2dc;
+            --md-on-secondary: #332d41;
+            --md-secondary-container: #4a4458;
+            --md-on-secondary-container: #e8def8;
+            --md-tertiary: #efb8c8;
+            --md-on-tertiary: #492532;
+            --md-tertiary-container: #633b48;
+            --md-on-tertiary-container: #ffd8e4;
+            --md-surface: #141218;
+            --md-on-surface: #e6e1e5;
+            --md-surface-variant: #49454f;
+            --md-on-surface-variant: #cac4d0;
+            --md-outline: #938f99;
+            --md-outline-variant: #49454f;
+            --md-background: linear-gradient(135deg, #0d0b10 0%, #141218 50%, #1a1820 100%);
+            --md-card-bg: rgba(20, 18, 24, 0.85);
+            --md-shadow: 0 2px 24px rgba(0, 0, 0, 0.4);
+            --md-shadow-hover: 0 8px 40px rgba(0, 0, 0, 0.6);
+            --md-nav-bg: #211f26;
+            --md-nav-active-indicator: var(--md-primary-container);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--md-background);
+            min-height: 100vh;
+            color: var(--md-on-surface);
+            line-height: 1.6;
+            font-weight: 400;
+            transition: background 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            padding-bottom: var(--nav-height);
+        }
+        .container { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
+        .header { text-align: center; margin-bottom: 40px; animation: slideDown 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        .logo { font-size: 3rem; font-weight: 700; margin-bottom: 12px; background: linear-gradient(135deg, var(--md-primary), var(--md-tertiary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: -0.02em; }
+        .tagline { font-size: 1.2rem; color: var(--md-on-surface-variant); font-weight: 300; letter-spacing: 0.01em; max-width: 500px; margin: 0 auto; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 28px; margin-bottom: 28px; }
+        .card { background: var(--md-card-bg); backdrop-filter: blur(20px); border-radius: 24px; padding: 32px 28px; box-shadow: var(--md-shadow); border: 1px solid var(--md-outline-variant); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation: fadeInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards; opacity: 0; transform: translateY(24px); position: relative; overflow: hidden; }
+        .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--md-primary), var(--md-tertiary)); opacity: 0; transition: opacity 0.3s ease; }
+        .card:hover { transform: translateY(-6px); box-shadow: var(--md-shadow-hover); }
+        .card:hover::before { opacity: 1; }
+        .view .card:nth-child(1) { animation-delay: 0.1s; }
+        .view .card:nth-child(2) { animation-delay: 0.2s; }
+        .view .card:nth-child(3) { animation-delay: 0.3s; }
+        .view .card:nth-child(4) { animation-delay: 0.4s; }
+        #settings-view .card:nth-child(1) { animation-delay: 0.1s; }
+        #settings-view .card:nth-child(2) { animation-delay: 0.2s; }
+        .card-title { font-size: 1.4rem; font-weight: 600; margin-bottom: 12px; color: var(--md-primary); display: flex; align-items: center; gap: 12px; letter-spacing: -0.01em; }
+        .card-desc { font-size: 1rem; color: var(--md-on-surface-variant); margin-bottom: 24px; font-weight: 300; line-height: 1.5; }
+        .switch-container { display: flex; align-items: center; justify-content: space-between; margin: 20px 0; padding: 12px; border-radius: 16px; transition: background-color 0.3s; }
+        .switch-container:hover { background-color: rgba(var(--md-on-surface-rgb), 0.04); }
+        .switch-container span { font-weight: 500; color: var(--md-on-surface); }
+        .switch { position: relative; display: inline-block; width: 56px; height: 32px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: var(--md-outline); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 32px; }
+        .slider:before { position: absolute; content: ""; height: 24px; width: 24px; left: 4px; bottom: 4px; background: white; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        input:checked + .slider { background: var(--md-primary); }
+        input:checked + .slider:before { transform: translateX(24px); }
+        .select-container { position: relative; margin: 20px 0; }
+        select { width: 100%; padding: 18px 24px; border: 2px solid var(--md-outline-variant); border-radius: 16px; font-size: 1rem; font-weight: 400; background: var(--md-surface); color: var(--md-on-surface); cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); appearance: none; font-family: 'Inter', sans-serif; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23666' d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 20px center; }
+        select option { background: var(--md-surface); color: var(--md-on-surface); }
+        select:focus { outline: none; border-color: var(--md-primary); box-shadow: 0 0 0 4px rgba(103, 80, 164, 0.1); }
+        .btn { background: var(--md-primary); color: var(--md-on-primary); border: none; padding: 16px 28px; border-radius: 28px; font-size: 1rem; font-weight: 500; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: inline-flex; align-items: center; gap: 10px; margin: 6px; min-width: 140px; justify-content: center; font-family: 'Inter', sans-serif; letter-spacing: 0.005em; }
+        .btn:hover { background: color-mix(in srgb, var(--md-primary) 90%, black); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(103, 80, 164, 0.25); }
+        .btn:active { transform: translateY(-1px); }
+        .btn-secondary { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+        .btn-secondary:hover { background: color-mix(in srgb, var(--md-secondary-container) 90%, black); box-shadow: 0 6px 20px rgba(98, 91, 113, 0.2); }
+        .ping-display { background: linear-gradient(135deg, var(--md-primary-container), var(--md-tertiary-container)); border-radius: 20px; padding: 28px 24px; text-align: center; margin: 20px 0; position: relative; overflow: hidden; }
+        .ping-display::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); animation: shimmer 3s infinite; }
+        .ping-value { font-size: 3rem; font-weight: 700; color: var(--md-primary); margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; letter-spacing: -0.02em; }
+        .ping-label { font-size: 1rem; color: var(--md-on-surface-variant); font-weight: 400; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .action-buttons { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 24px; }
+        .status-indicator { width: 10px; height: 10px; border-radius: 50%; background: var(--md-success); display: inline-block; animation: pulse 2s infinite; }
+        .view { display: none; animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        .view.active { display: block; }
+        
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: var(--nav-height);
+            background-color: var(--md-nav-bg);
+            display: flex;
+            justify-content: space-around;
+            align-items: stretch; /* Changed from center to stretch */
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            color: var(--md-on-surface-variant);
+            background-color: transparent;
+            border: none;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            flex-grow: 1;
+            transition: color 0.3s ease;
+        }
+        .nav-item .icon-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 64px;
+            height: 32px;
+            border-radius: 16px;
+            transition: background-color 0.3s ease;
+        }
+        .nav-item .icon-container .material-icons-outlined {
+            font-size: 24px;
+        }
+        .nav-item .label {
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .nav-item .icon-filled { display: none; }
+        .nav-item.active {
+            color: var(--md-on-primary-container);
+        }
+        .nav-item.active .icon-container {
+            background-color: var(--md-nav-active-indicator);
+        }
+        .nav-item.active .icon-outlined { display: none; }
+        .nav-item.active .icon-filled { display: inline-block; }
+        
+        .profile-card { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .profile-icon-container { width: 120px; height: 120px; margin-bottom: 24px; border-radius: 50%; background: linear-gradient(135deg, var(--md-primary-container), var(--md-tertiary-container)); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+        .profile-icon-container svg { width: 70%; height: 70%; color: var(--md-primary); }
+        .profile-card .btn { margin-top: 16px; }
+
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-40px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.1); } }
+        @keyframes shimmer { 0% { left: -100%; } 100% { left: 100%; } }
+        @media (max-width: 768px) { .container { padding: 20px 16px; } .grid { grid-template-columns: 1fr; gap: 20px; } .action-buttons { flex-direction: column; } .btn { width: 100%; } .logo { font-size: 2.5rem; } .card { padding: 24px 20px; } }
+        ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--md-outline-variant); border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: var(--md-outline); }
+    </style>
+</head>
+<body>
+    <main>
+        <div id="home-view" class="view active">
+            <div class="container">
+                <header class="header">
+                    <h1 class="logo">🚀 PingPimp</h1>
+                    <p class="tagline" data-translate-key="home_tagline">elevating connections with optimized performance</p>
+                </header>
+                <div class="grid">
+                    <div class="card">
+                        <h2 class="card-title" data-translate-key="home_card_power_title">⚡ Power Controls</h2>
+                        <p class="card-desc" data-translate-key="home_card_power_desc">Activate advanced optimizations and configure automatic deployment settings</p>
+                        <div class="switch-container">
+                            <span data-translate-key="home_switch_performance">Enable Performance Enhancement</span>
+                            <label class="switch"><input type="checkbox" id="enableTweak"><span class="slider"></span></label>
+                        </div>
+                        <div class="switch-container">
+                            <span data-translate-key="home_switch_startup">Auto-Launch on System Startup</span>
+                            <label class="switch"><input type="checkbox" id="autoApply"><span class="slider"></span></label>
+                        </div>
+                        <div class="action-buttons">
+                            <button class="btn" onclick="applyTweaks(event)" data-translate-key="home_btn_apply">✨ Apply Optimizations</button>
+                            <button class="btn btn-secondary" onclick="resetTweaks(event)" data-translate-key="home_btn_reset">🔄 Reset Configuration</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2 class="card-title" data-translate-key="home_card_profiles_title">🎯 Performance Profiles</h2>
+                        <p class="card-desc" data-translate-key="home_card_profiles_desc">Select optimized presets tailored for your specific use case and requirements</p>
+                        <div class="select-container">
+                            <select id="mode">
+                                <option value="balanced" data-translate-key="home_mode_balanced">🌊 Balanced — Optimal everyday performance</option>
+                                <option value="gaming" data-translate-key="home_mode_gaming">🎮 Gaming — Ultra-low latency configuration</option>
+                                <option value="streaming" data-translate-key="home_mode_streaming">📺 Streaming — High-bandwidth optimization</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2 class="card-title" data-translate-key="home_card_dns_title">🌐 DNS Resolution</h2>
+                        <p class="card-desc" data-translate-key="home_card_dns_desc">Configure high-performance DNS providers for enhanced Browse speed and reliability</p>
+                        <div class="select-container"><select id="dns"></select></div>
+                    </div>
+                    <div class="card">
+                        <h2 class="card-title" data-translate-key="home_card_protocol_title">📡 Protocol Optimization</h2>
+                        <p class="card-desc" data-translate-key="home_card_protocol_desc">Fine-tune congestion control algorithms for maximum throughput efficiency</p>
+                        <div class="select-container"><select id="ccAlgo"></select></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2 class="card-title" data-translate-key="home_card_diagnostics_title">📊 Network Diagnostics</h2>
+                    <p class="card-desc" data-translate-key="home_card_diagnostics_desc">Real-time connectivity monitoring with comprehensive network health analysis</p>
+                    <div class="ping-display">
+                        <div class="ping-value" id="pingResult">-- ms</div>
+                        <div class="ping-label">
+                            <span class="status-indicator"></span>
+                            <span data-translate-key="home_ping_label">Live connectivity measurement</span>
+                        </div>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn" onclick="refreshPing(event)" data-translate-key="home_btn_test">🔄 Test Connection</button>
+                        <button class="btn btn-secondary" onclick="cleanLogs(event)" data-translate-key="home_btn_clear">🧹 Clear Diagnostics</button>
+                    </div>
+                    <p class="card-desc" style="margin-top: 20px; margin-bottom: 0;">
+                        <strong data-translate-key="home_clear_note_title">Clear Diagnostics:</strong>
+                        <span data-translate-key="home_clear_note_desc">Removes all network event logs and diagnostic data for optimal system performance</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div id="settings-view" class="view">
+            <div class="container">
+                <header class="header">
+                    <h1 class="logo" data-translate-key="settings_header">Settings</h1>
+                    <p class="tagline" data-translate-key="settings_tagline">Customize your application experience</p>
+                </header>
+                <div class="grid">
+                    <div class="card">
+                        <h2 class="card-title"><span class="material-icons-outlined">palette</span><span data-translate-key="settings_card_appearance_title">Appearance</span></h2>
+                        <p class="card-desc" data-translate-key="settings_card_appearance_desc">Adjust the look and feel of the application.</p>
+                        <div class="switch-container">
+                            <span data-translate-key="settings_switch_dark_mode">Enable Dark Mode</span>
+                            <label class="switch"><input type="checkbox" id="themeToggleSwitch"><span class="slider"></span></label>
+                        </div>
+                    </div>
+                    <div class="card">
+                         <h2 class="card-title"><span class="material-icons-outlined">translate</span><span data-translate-key="settings_card_language_title">Language</span></h2>
+                         <p class="card-desc" data-translate-key="settings_card_language_desc">Choose your preferred language for the interface.</p>
+                         <div class="select-container">
+                             <select id="languageSelector">
+                                 <option value="en">🇬🇧 English</option>
+                                 <option value="id">🇮🇩 Bahasa Indonesia</option>
+                             </select>
+                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="update-view" class="view">
+            <div class="container">
+                <header class="header">
+                    <h1 class="logo" data-translate-key="update_header">Update</h1>
+                    <p class="tagline" data-translate-key="update_tagline">Check for the latest updates and contributions</p>
+                </header>
+                <div class="card profile-card">
+                    <div class="profile-icon-container">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.03 0-4.43-.82-6.14-2.88a9.947 9.947 0 0 1 12.28 0C16.43 19.18 14.03 20 12 20z"></path></svg>
+                    </div>
+                    <h2 class="card-title" style="justify-content: center;">fuckyoustan</h2>
+                    <p class="card-desc" data-translate-key="update_card_desc">Find my work and contributions on GitHub. Feel free to follow or fork my projects!</p>
+                    <a href="https://github.com/fuckyoustan" target="_blank" rel="noopener noreferrer" class="btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                        <span data-translate-key="update_btn_profile">View Profile</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <nav class="bottom-nav">
+        <button class="nav-item active" data-view="home-view">
+            <span class="icon-container">
+                <span class="material-icons-outlined icon-outlined">home</span>
+                <span class="material-icons-outlined icon-filled">home</span>
+            </span>
+            <span class="label" data-translate-key="nav_home">Home</span>
+        </button>
+        <button class="nav-item" data-view="settings-view">
+            <span class="icon-container">
+                <span class="material-icons-outlined icon-outlined">settings</span>
+                <span class="material-icons-outlined icon-filled">settings</span>
+            </span>
+            <span class="label" data-translate-key="nav_settings">Settings</span>
+        </button>
+        <button class="nav-item" data-view="update-view">
+            <span class="icon-container">
+                <span class="material-icons-outlined icon-outlined">info</span>
+                <span class="material-icons-outlined icon-filled">info</span>
+            </span>
+            <span class="label" data-translate-key="nav_update">Update</span>
+        </button>
+    </nav>
+
+
+    <script>
+        const translations = {
+            en: {
+                nav_home: 'Home', nav_settings: 'Settings', nav_update: 'Update',
+                home_tagline: 'elevating connections with optimized performance',
+                home_card_power_title: '⚡ Power Controls',
+                home_card_power_desc: 'Activate advanced optimizations and configure automatic deployment settings',
+                home_switch_performance: 'Enable Performance Enhancement',
+                home_switch_startup: 'Auto-Launch on System Startup',
+                home_btn_apply: '✨ Apply Optimizations',
+                home_btn_reset: '🔄 Reset Configuration',
+                home_card_profiles_title: '🎯 Performance Profiles',
+                home_card_profiles_desc: 'Select optimized presets tailored for your specific use case and requirements',
+                home_mode_balanced: '🌊 Balanced — Optimal everyday performance',
+                home_mode_gaming: '🎮 Gaming — Ultra-low latency configuration',
+                home_mode_streaming: '📺 Streaming — High-bandwidth optimization',
+                home_card_dns_title: '🌐 DNS Resolution',
+                home_card_dns_desc: 'Configure high-performance DNS providers for enhanced Browse speed and reliability',
+                home_card_protocol_title: '📡 Protocol Optimization',
+                home_card_protocol_desc: 'Fine-tune congestion control algorithms for maximum throughput efficiency',
+                home_card_diagnostics_title: '📊 Network Diagnostics',
+                home_card_diagnostics_desc: 'Real-time connectivity monitoring with comprehensive network health analysis',
+                home_ping_label: 'Live connectivity measurement',
+                home_btn_test: '🔄 Test Connection',
+                home_btn_clear: '🧹 Clear Diagnostics',
+                home_clear_note_title: 'Clear Diagnostics:',
+                home_clear_note_desc: 'Removes all network event logs and diagnostic data for optimal system performance',
+                settings_header: 'Settings', settings_tagline: 'Customize your experience',
+                settings_card_appearance_title: 'Appearance',
+                settings_card_appearance_desc: 'Adjust the look and feel of the application.',
+                settings_switch_dark_mode: 'Enable Dark Mode',
+                settings_card_language_title: 'Language',
+                settings_card_language_desc: 'Choose your preferred language for the interface.',
+                update_header: 'Update', update_tagline: 'Check for updates and support',
+                update_card_desc: 'Click to visit my GitHub profile for updates and support',
+                update_btn_profile: 'View Profile'
+            },
+            id: {
+                nav_home: 'Beranda', nav_settings: 'Pengaturan', nav_update: 'Pembaruan',
+                home_tagline: 'meningkatkan koneksi dengan performa yang dioptimalkan',
+                home_card_power_title: '⚡ Kontrol Daya',
+                home_card_power_desc: 'Aktifkan optimisasi canggih dan konfigurasikan penerapan otomatis',
+                home_switch_performance: 'Aktifkan Peningkatan Performa',
+                home_switch_startup: 'Mulai Otomatis saat Sistem Menyala',
+                home_btn_apply: '✨ Terapkan Optimisasi',
+                home_btn_reset: '🔄 Atur Ulang Konfigurasi',
+                home_card_profiles_title: '🎯 Profil Performa',
+                home_card_profiles_desc: 'Pilih preset yang dioptimalkan untuk kasus penggunaan Anda',
+                home_mode_balanced: '🌊 Seimbang — Performa optimal sehari-hari',
+                home_mode_gaming: '🎮 Game — Konfigurasi latensi sangat rendah',
+                home_mode_streaming: '📺 Streaming — Optimisasi bandwidth tinggi',
+                home_card_dns_title: '🌐 Resolusi DNS',
+                home_card_dns_desc: 'Konfigurasikan penyedia DNS berkinerja tinggi untuk kecepatan penjelajahan',
+                home_card_protocol_title: '📡 Optimisasi Protokol',
+                home_card_protocol_desc: 'Sesuaikan algoritma kontrol kemacetan untuk throughput maksimum',
+                home_card_diagnostics_title: '📊 Diagnostik Jaringan',
+                home_card_diagnostics_desc: 'Pemantauan konektivitas waktu nyata dengan analisis kesehatan jaringan',
+                home_ping_label: 'Pengukuran konektivitas langsung',
+                home_btn_test: '🔄 Uji Koneksi',
+                home_btn_clear: '🧹 Bersihkan Diagnostik',
+                home_clear_note_title: 'Bersihkan Diagnostik:',
+                home_clear_note_desc: 'Menghapus semua log peristiwa jaringan dan data diagnostik untuk kinerja optimal',
+                settings_header: 'Pengaturan', settings_tagline: 'Sesuaikan pengalaman Anda',
+                settings_card_appearance_title: 'Tampilan',
+                settings_card_appearance_desc: 'Sesuaikan tampilan dan nuansa aplikasi.',
+                settings_switch_dark_mode: 'Aktifkan Mode Gelap',
+                settings_card_language_title: 'Bahasa',
+                settings_card_language_desc: 'Pilih bahasa pilihan Anda untuk antarmuka.',
+                update_header: 'Pembaruan', update_tagline: 'Periksa pembaruan dan dukungan',
+                update_card_desc: 'Klik untuk mengunjungi profil GitHub saya untuk update dan dukungan',
+                update_btn_profile: 'Lihat Profil'
+            }
+        };
+
+        const dnsOptions = {
+            en: [ { value: '1.1.1.1', text: '☁️ Cloudflare — Premium speed & privacy' }, { value: '8.8.8.8', text: '🔍 Google DNS — Enterprise reliability' }, { value: '94.140.14.14', text: '🛡️ AdGuard — Advanced filtering' }, { value: '45.90.28.0', text: '🎯 NextDNS — Privacy-focused solution' }, { value: '9.9.9.9', text: '🔒 Quad9 — Security & malware protection' }, { value: '208.67.222.222', text: '🌐 OpenDNS — Family-safe Browse' }, { value: 'dot.tiar.app', text: '🌀 Tiarap DNS — Privacy first' } ],
+            id: [ { value: '1.1.1.1', text: '☁️ Cloudflare — Kecepatan & privasi premium' }, { value: '8.8.8.8', text: '🔍 Google DNS — Keandalan tingkat perusahaan' }, { value: '94.140.14.14', text: '🛡️ AdGuard — Penyaringan tingkat lanjut' }, { value: '45.90.28.0', text: '🎯 NextDNS — Solusi berfokus privasi' }, { value: '9.9.9.9', text: '🔒 Quad9 — Keamanan & perlindungan malware' }, { value: '208.67.222.222', text: '🌐 OpenDNS — Penjelajahan aman keluarga' }, { value: 'dot.tiar.app', text: '🌀 Tiarap DNS — Mengutamakan privasi' } ]
+        };
+
+        const ccAlgoOptions = {
+            en: [ { value: 'bbr2', text: '🚀 BBR2 — Next-generation algorithm' }, { value: 'bbr', text: '⚡ BBR — Google\'s breakthrough protocol' }, { value: 'cubic', text: '📈 CUBIC — Industry standard' }, { value: 'reno', text: '🏛️ RENO — Classic implementation' } ],
+            id: [ { value: 'bbr2', text: '🚀 BBR2 — Algoritma generasi berikutnya' }, { value: 'bbr', text: '⚡ BBR — Protokol terobosan Google' }, { value: 'cubic', text: '📈 CUBIC — Standar industri' }, { value: 'reno', text: '🏛️ RENO — Implementasi klasik' } ]
+        };
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const body = document.body;
+            const themeToggleSwitch = document.getElementById('themeToggleSwitch');
+            const languageSelector = document.getElementById('languageSelector');
+
+            function setUIToTheme(theme) {
+                body.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
+                themeToggleSwitch.checked = theme === 'dark';
+            }
+            themeToggleSwitch.addEventListener('change', () => setUIToTheme(themeToggleSwitch.checked ? 'dark' : 'light'));
+
+            function setLanguage(lang) {
+                document.querySelectorAll('[data-translate-key]').forEach(el => {
+                    const key = el.dataset.translateKey;
+                    if (translations[lang] && translations[lang][key]) {
+                        const contentNode = el.childNodes[el.childNodes.length - 1];
+                        if(contentNode && contentNode.nodeType === Node.TEXT_NODE) {
+                           contentNode.textContent = ' ' + translations[lang][key];
+                        } else {
+                           el.textContent = translations[lang][key];
+                        }
+                    }
+                });
+                const updateSelect = (selectId, options) => {
+                    const select = document.getElementById(selectId);
+                    if (!select) return;
+                    const currentValue = select.value;
+                    select.innerHTML = '';
+                    options[lang].forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt.value;
+                        option.textContent = opt.text;
+                        select.appendChild(option);
+                    });
+                    if (currentValue) select.value = currentValue;
+                };
+                updateSelect('dns', dnsOptions);
+                updateSelect('ccAlgo', ccAlgoOptions);
+            }
+            languageSelector.addEventListener('change', () => setLanguage(languageSelector.value));
+
+            const navItems = document.querySelectorAll('.nav-item');
+            const views = document.querySelectorAll('.view');
+            
+            function switchView(viewId) {
+                views.forEach(view => view.classList.remove('active'));
+                document.getElementById(viewId).classList.add('active');
+                navItems.forEach(item => item.classList.toggle('active', item.dataset.view === viewId));
+            }
+            navItems.forEach(item => {
+                item.addEventListener('click', () => switchView(item.dataset.view));
+            });
+            
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            setUIToTheme(prefersDark ? 'dark' : 'light');
+            
+            // Set initial language from storage or default to 'id'
+            const savedLang = localStorage.getItem('pingpimp-lang') || 'id';
+            languageSelector.value = savedLang;
+            setLanguage(savedLang);
+
+            setTimeout(() => {
+                const pingBtn = document.querySelector('#home-view .btn[onclick="refreshPing(event)"]');
+                if(pingBtn) refreshPing({target: pingBtn});
+            }, 500);
+        });
+
+        function applyTweaks(event) { const btn = event.target.closest('.btn'); const originalHTML = btn.innerHTML; btn.innerHTML = '⏳ Applying...'; btn.disabled = true; setTimeout(() => { btn.innerHTML = '✅ Applied!'; setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; }, 1500); }, 2000); }
+        function resetTweaks(event) { const btn = event.target.closest('.btn'); const originalHTML = btn.innerHTML; btn.innerHTML = '⏳ Resetting...'; btn.disabled = true; setTimeout(() => { btn.innerHTML = '✅ Reset!'; document.getElementById('enableTweak').checked = false; document.getElementById('autoApply').checked = false; document.getElementById('mode').value = 'balanced'; document.getElementById('dns').value = '1.1.1.1'; document.getElementById('ccAlgo').value = 'bbr2'; setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; }, 1500); }, 1500); }
+        function refreshPing(event) { const pingDisplay = document.getElementById('pingResult'); let btn, originalHTML; if(event) { btn = event.target.closest('.btn'); originalHTML = btn.innerHTML; btn.innerHTML = '📡 Testing...'; btn.disabled = true; } pingDisplay.textContent = '...'; let elapsed = 0; const testInterval = setInterval(() => { elapsed += 100; pingDisplay.textContent = `${Math.floor(Math.random() * 50) + 15} ms`; if (elapsed >= 2000) { clearInterval(testInterval); pingDisplay.textContent = `${Math.floor(Math.random() * 80) + 10} ms`; if(btn){ btn.innerHTML = originalHTML; btn.disabled = false; } } }, 100); }
+        function cleanLogs(event) { const btn = event.target.closest('.btn'); const originalHTML = btn.innerHTML; btn.innerHTML = '🧽 Cleaning...'; btn.disabled = true; setTimeout(() => { btn.innerHTML = '✨ Cleared!'; setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; }, 1500); }, 2000); }
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
