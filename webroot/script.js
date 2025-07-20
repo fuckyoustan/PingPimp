@@ -140,13 +140,17 @@ async function applyNetworkOptimizations() {
         "echo 0 > /proc/sys/net/ipv6/route/gc_min_interval",
         "echo 0 > /proc/sys/net/ipv6/neigh/default/gc_interval",
         "echo 0 > /proc/sys/net/ipv6/ip6frag_secret_interval",
+        
+        "echo '65536 131072 8388608' > /proc/sys/net/ipv4/udp_mem",
+        "echo 65536 > /proc/sys/net/ipv4/udp_rmem_min",
+        "echo 65536 > /proc/sys/net/ipv4/udp_wmem_min",
 
         "resetprop net.tcp.default_init_rwnd 60"
     ];
 
     for (const command of commands) {
         try {
-            await exec(command);
+            await exec(`sh -c "${command}"`);
             appendToOutput(`[✅] ${command}`);
         } catch (error) {
             appendToOutput(`[❌] ${command} - ${error.message}`);
@@ -179,62 +183,74 @@ async function applyPerformanceMode(mode) {
     const modeConfigs = {
         gaming: {
             description: "Gaming mode - Prioritize stability & low latency",
-            commands: [
-                "echo '1' > /proc/sys/net/ipv4/tcp_low_latency",
-                "echo '0' > /proc/sys/net/ipv4/tcp_slow_start_after_idle",
-                "echo '1' > /proc/sys/net/ipv4/tcp_no_metrics_save",
-                "echo '1' > /proc/sys/net/ipv4/tcp_frto",
-                "echo '30' > /proc/sys/net/ipv4/tcp_keepalive_time",
-                "echo '5' > /proc/sys/net/ipv4/tcp_keepalive_probes",
-                "echo '15' > /proc/sys/net/ipv4/tcp_keepalive_intvl",
-                "echo '16384 65536 262144' > /proc/sys/net/ipv4/tcp_rmem",
-                "echo '16384 65536 262144' > /proc/sys/net/ipv4/tcp_wmem",
-                "echo '524288' > /proc/sys/net/core/rmem_max",
-                "echo '524288' > /proc/sys/net/core/wmem_max",
-                "echo '2048' > /proc/sys/net/core/somaxconn",
-                "echo '8192' > /proc/sys/net/core/optmem_max"
-            ]
+            values: {
+                "/proc/sys/net/ipv4/tcp_low_latency": "1",
+                "/proc/sys/net/ipv4/tcp_slow_start_after_idle": "0",
+                "/proc/sys/net/ipv4/tcp_no_metrics_save": "1",
+                "/proc/sys/net/ipv4/tcp_frto": "1",
+                "/proc/sys/net/ipv4/tcp_keepalive_time": "30",
+                "/proc/sys/net/ipv4/tcp_keepalive_probes": "5",
+                "/proc/sys/net/ipv4/tcp_keepalive_intvl": "15",
+                "/proc/sys/net/ipv4/tcp_rmem": "16384 65536 262144",
+                "/proc/sys/net/ipv4/tcp_wmem": "16384 65536 262144",
+                "/proc/sys/net/core/rmem_max": "524288",
+                "/proc/sys/net/core/wmem_max": "524288",
+                "/proc/sys/net/core/somaxconn": "2048",
+                "/proc/sys/net/core/optmem_max": "8192"
+            }
         },
         streaming: {
             description: "Streaming mode - Maximize buffer & throughput",
-            commands: [
-                "echo '33554432' > /proc/sys/net/core/rmem_max",
-                "echo '33554432' > /proc/sys/net/core/wmem_max",
-                "echo '4096 87380 33554432' > /proc/sys/net/ipv4/tcp_rmem",
-                "echo '4096 65536 33554432' > /proc/sys/net/ipv4/tcp_wmem",
-                "echo '10000' > /proc/sys/net/core/netdev_max_backlog",
-                "echo '1' > /proc/sys/net/ipv4/tcp_window_scaling",
-                "echo '1' > /proc/sys/net/ipv4/tcp_timestamps",
-                "echo '0' > /proc/sys/net/ipv4/tcp_no_metrics_save"
-            ]
+            values: {
+                "/proc/sys/net/ipv4/tcp_low_latency": "0",
+                "/proc/sys/net/ipv4/tcp_slow_start_after_idle": "1",
+                "/proc/sys/net/ipv4/tcp_no_metrics_save": "0",
+                "/proc/sys/net/ipv4/tcp_frto": "0",
+                "/proc/sys/net/ipv4/tcp_keepalive_time": "120",
+                "/proc/sys/net/ipv4/tcp_keepalive_probes": "9",
+                "/proc/sys/net/ipv4/tcp_keepalive_intvl": "60",
+                "/proc/sys/net/ipv4/tcp_rmem": "4096 87380 33554432",
+                "/proc/sys/net/ipv4/tcp_wmem": "4096 65536 33554432",
+                "/proc/sys/net/core/rmem_max": "33554432",
+                "/proc/sys/net/core/wmem_max": "33554432",
+                "/proc/sys/net/core/somaxconn": "4096",
+                "/proc/sys/net/core/optmem_max": "16384"
+            }
         },
         balanced: {
             description: "Balanced mode - General use with fair performance",
-            commands: [
-                "echo '131072' > /proc/sys/net/core/rmem_default",
-                "echo '524288' > /proc/sys/net/core/rmem_max",
-                "echo '131072' > /proc/sys/net/core/wmem_default",
-                "echo '524288' > /proc/sys/net/core/wmem_max",
-                "echo '4096 65536 524288' > /proc/sys/net/ipv4/tcp_rmem",
-                "echo '4096 65536 524288' > /proc/sys/net/ipv4/tcp_wmem",
-                "echo '1' > /proc/sys/net/ipv4/tcp_moderate_rcvbuf",
-                "echo '1' > /proc/sys/net/ipv4/tcp_sack",
-                "echo '1' > /proc/sys/net/ipv4/tcp_syncookies"
-            ]
+            values: {
+                "/proc/sys/net/ipv4/tcp_low_latency": "0",
+                "/proc/sys/net/ipv4/tcp_slow_start_after_idle": "1",
+                "/proc/sys/net/ipv4/tcp_no_metrics_save": "0",
+                "/proc/sys/net/ipv4/tcp_frto": "1",
+                "/proc/sys/net/ipv4/tcp_keepalive_time": "60",
+                "/proc/sys/net/ipv4/tcp_keepalive_probes": "6",
+                "/proc/sys/net/ipv4/tcp_keepalive_intvl": "30",
+                "/proc/sys/net/ipv4/tcp_rmem": "4096 65536 524288",
+                "/proc/sys/net/ipv4/tcp_wmem": "4096 65536 524288",
+                "/proc/sys/net/core/rmem_max": "524288",
+                "/proc/sys/net/core/wmem_max": "524288",
+                "/proc/sys/net/core/somaxconn": "2048",
+                "/proc/sys/net/core/optmem_max": "12288"
+            }
         }
     };
 
     const config = modeConfigs[mode];
     if (config) {
         appendToOutput(`[🎯] Applying ${config.description}...`);
-        for (const command of config.commands) {
+        for (const [path, value] of Object.entries(config.values)) {
+            const command = `echo '${value}' > ${path}`;
             try {
                 await exec(command);
-                appendToOutput(`[✅] Applied: ${command.split('>')[1]?.trim() || command}`);
+                appendToOutput(`[✅] Applied: ${path} ← ${value}`);
             } catch (error) {
-                appendToOutput(`[❌] Failed: ${error.message}`);
+                appendToOutput(`[❌] Failed: ${path} → ${error.message}`);
             }
         }
+    } else {
+        appendToOutput(`[⚠️] Mode '${mode}' not found.`);
     }
 }
 
@@ -292,7 +308,7 @@ async function configureDNS(dns) {
 
 // Congestion control algorithm configuration
 async function configureCongestionControl(algorithm) {
-    const allowed = ['bbr2', 'bbr', 'cubic', 'reno'];
+    const allowed = ['bbr2', 'bbr', 'cubic', 'reno', 'bic', 'westwood', 'vegas'];
     if (!allowed.includes(algorithm)) {
         appendToOutput(`[⚠️] Unknown algorithm: ${algorithm}`);
         return;
