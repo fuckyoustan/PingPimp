@@ -23,7 +23,7 @@ Manage all tweaks on the fly without terminal hassle. Real time switching for DN
 2. Reboot
 3. Tweak it your way!
 
-# 📝 Note for users:
+# 📝 Note for users
 Some congestion control options may not work on all devices.
 To check which ones your device supports, run these commands in a terminal or shell:
 
