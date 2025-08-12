@@ -1,34 +1,18 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PingPimp - Your Network's Best Friend</title>
 
-    <script>
-        (function() {
-            try {
-                const theme = localStorage.getItem('pingpimp-theme');
-                if (theme) {
-                    document.documentElement.setAttribute('data-theme', theme);
-                } else {
-                    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-                }
-            } catch (e) {
-                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-            }
-        })();
-    </script>
-    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
-    
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <main>
         <div id="home-view" class="view active">
@@ -54,6 +38,7 @@
                             <button class="btn btn-secondary" onclick="resetTweaks(event)" data-translate-key="home_btn_reset">🔄 Reset Configuration</button>
                         </div>
                     </div>
+
                     <div class="card">
                         <h2 class="card-title" data-translate-key="home_card_profiles_title">🎯 Performance Profiles</h2>
                         <p class="card-desc" data-translate-key="home_card_profiles_desc">Select optimized presets tailored for your specific use case and requirements</p>
@@ -62,38 +47,48 @@
                                 <option value="balanced" data-translate-key="home_mode_balanced">🌊 Balanced — Optimal everyday performance</option>
                                 <option value="gaming" data-translate-key="home_mode_gaming">🎮 Gaming — Ultra-low latency configuration</option>
                                 <option value="streaming" data-translate-key="home_mode_streaming">📺 Streaming — High-bandwidth optimization</option>
+                                <option value="download" data-translate-key="home_mode_download">🌐 Download — Maximum buffer for fast downloads</option>
+                                <option value="social" data-translate-key="home_mode_social">📱 Social Media — Lightweight & responsive</option>
+                                <option value="outdoor" data-translate-key="home_mode_outdoor">🏕️ Outdoor — Mobile signal & stability focused</option>
                             </select>
                         </div>
                     </div>
+
                     <div class="card">
                         <h2 class="card-title" data-translate-key="home_card_dns_title">🌐 DNS Resolution</h2>
                         <p class="card-desc" data-translate-key="home_card_dns_desc">Configure high-performance DNS providers for enhanced Browse speed and reliability</p>
-                        <div class="select-container"><select id="dns"></select></div>
+                        <div class="select-container">
+                            <select id="dns"></select>
+                        </div>
                     </div>
+
                     <div class="card">
                         <h2 class="card-title" data-translate-key="home_card_protocol_title">📡 Protocol Optimization</h2>
                         <p class="card-desc" data-translate-key="home_card_protocol_desc">Fine-tune congestion control algorithms for maximum throughput efficiency</p>
-                        <div class="select-container"><select id="ccAlgo"></select></div>
-                    </div>
-                </div>
-                <div class="card">
-                    <h2 class="card-title" data-translate-key="home_card_diagnostics_title">📊 Network Diagnostics</h2>
-                    <p class="card-desc" data-translate-key="home_card_diagnostics_desc">Real-time connectivity monitoring with comprehensive network health analysis</p>
-                    <div class="ping-display">
-                        <div class="ping-value" id="pingResult">-- ms</div>
-                        <div class="ping-label">
-                            <span class="status-indicator"></span>
-                            <span data-translate-key="home_ping_label">Live connectivity measurement</span>
+                        <div class="select-container">
+                            <select id="ccAlgo"></select>
                         </div>
                     </div>
-                    <div class="action-buttons">
-                        <button class="btn" onclick="refreshPing(event)" data-translate-key="home_btn_test">🔄 Test Connection</button>
-                        <button class="btn btn-secondary" onclick="cleanLogs(event)" data-translate-key="home_btn_clear">🧹 Clear Diagnostics</button>
+
+                    <div class="card">
+                        <h2 class="card-title">📊 Network Diagnostics</h2>
+                        <p class="card-desc">Real-time connectivity monitoring with comprehensive network health analysis</p>
+                        <div class="ping-display" id="pingDisplay">
+                            <div class="ping-value" id="pingResult">-- ms</div>
+                            <div class="ping-label">
+                                <span class="status-indicator"></span>
+                                <span>Live connectivity measurement</span>
+                            </div>
+                        </div>
+                        <div class="action-buttons">
+                            <button class="btn" onclick="refreshPing(event)">🔄 Test Connection</button>
+                            <button class="btn btn-secondary" onclick="cleanLogs(event)">🧹 Clear Diagnostics</button>
+                        </div>
+                        <p class="card-desc" style="margin-top: 20px; margin-bottom: 0;">
+                            <strong>Clear Diagnostics:</strong>
+                            <span>Removes all network event logs and diagnostic data for optimal system performance</span>
+                        </p>
                     </div>
-                    <p class="card-desc" style="margin-top: 20px; margin-bottom: 0;">
-                        <strong data-translate-key="home_clear_note_title">Clear Diagnostics:</strong>
-                        <span data-translate-key="home_clear_note_desc">Removes all network event logs and diagnostic data for optimal system performance</span>
-                    </p>
                 </div>
             </div>
         </div>
@@ -114,14 +109,14 @@
                         </div>
                     </div>
                     <div class="card">
-                         <h2 class="card-title"><span class="material-icons-outlined">translate</span><span data-translate-key="settings_card_language_title">Language</span></h2>
-                         <p class="card-desc" data-translate-key="settings_card_language_desc">Choose your preferred language for the interface.</p>
-                         <div class="select-container">
-                             <select id="languageSelector">
-                                 <option value="en">🇬🇧 English</option>
-                                 <option value="id">🇮🇩 Bahasa Indonesia</option>
-                             </select>
-                         </div>
+                        <h2 class="card-title"><span class="material-icons-outlined">translate</span><span data-translate-key="settings_card_language_title">Language</span></h2>
+                        <p class="card-desc" data-translate-key="settings_card_language_desc">Choose your preferred language for the interface.</p>
+                        <div class="select-container">
+                            <select id="languageSelector">
+                                <option value="en">🇬🇧 English</option>
+                                <option value="id">🇮🇩 Bahasa Indonesia</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -135,14 +130,22 @@
                 </header>
                 <div class="card profile-card">
                     <div class="profile-icon-container">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.03 0-4.43-.82-6.14-2.88a9.947 9.947 0 0 1 12.28 0C16.43 19.18 14.03 20 12 20z"></path></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.03 0-4.43-.82-6.14-2.88a9.947 9.947 0 0 1 12.28 0C16.43 19.18 14.03 20 12 20z"></path>
+                        </svg>
                     </div>
                     <h2 class="card-title" style="justify-content: center;">fuckyoustan</h2>
-                    <p class="card-desc" data-translate-key="update_card_desc">Find my work and contributions on GitHub. Feel free to follow or fork my projects!</p>
-                    <a href="https://github.com/fuckyoustan" target="_blank" rel="noopener noreferrer" class="btn">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-                        <span data-translate-key="update_btn_profile">View Profile</span>
-                    </a>
+                    <p class="card-desc" data-translate-key="update_card_desc">Follow my work on GitHub or join our Telegram channel for updates and discussions.</p>
+                    <div class="action-buttons">
+                        <button class="btn" data-url="https://github.com/fuckyoustan">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"></svg>
+                            <span data-translate-key="update_btn_profile">View Profile</span>
+                        </button>
+                        <button class="btn btn-secondary" data-url="https://t.me/EverythingAboutArchive">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="m9.417 15.181-.397 5.584c.568 0 .814-.244 1.109-.537l2.663-2.545 5.518 4.041c1.012.564 1.725.267 1.998-.931L22.092 3.814c.34-1.458-.588-2.15-1.548-1.72L1.531 9.77c-1.545.622-1.542 1.53.285 1.932l4.895 1.534 11.402-7.21c.527-.332.99-.155.558.194z"></path></svg>
+                            <span data-translate-key="update_btn_telegram">Join Telegram</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -171,7 +174,8 @@
             <span class="label" data-translate-key="nav_update">Update</span>
         </button>
     </nav>
-    
+
     <script src="script.js"></script>
 </body>
+
 </html>
