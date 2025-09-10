@@ -1,181 +1,212 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PingPimp - Your Network's Best Friend</title>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+    <title>PingPimp - Network Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
     <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-    <main>
-        <div id="home-view" class="view active">
-            <div class="container">
-                <header class="header">
-                    <h1 class="logo">🚀 PingPimp</h1>
-                    <p class="tagline" data-translate-key="home_tagline">elevating connections with optimized performance</p>
-                </header>
-                <div class="grid">
-                    <div class="card">
-                        <h2 class="card-title" data-translate-key="home_card_power_title">⚡ Power Controls</h2>
-                        <p class="card-desc" data-translate-key="home_card_power_desc">Activate advanced optimizations and configure automatic deployment settings</p>
-                        <div class="switch-container">
-                            <span data-translate-key="home_switch_performance">Enable Performance Enhancement</span>
-                            <label class="switch"><input type="checkbox" id="enableTweak"><span class="slider"></span></label>
-                        </div>
-                        <div class="switch-container">
-                            <span data-translate-key="home_switch_startup">Auto-Launch on System Startup</span>
-                            <label class="switch"><input type="checkbox" id="autoApply"><span class="slider"></span></label>
-                        </div>
-                        <div class="action-buttons">
-                            <button class="btn" onclick="applyTweaks(event)" data-translate-key="home_btn_apply">✨ Apply Optimizations</button>
-                            <button class="btn btn-secondary" onclick="resetTweaks(event)" data-translate-key="home_btn_reset">🔄 Reset Configuration</button>
-                        </div>
+    <div id="toast-container"></div>
+    <div class="app-container">
+        <header class="app-header">
+            <div>
+                <h1 class="app-title">PingPimp</h1>
+                <div class="app-version">v5.0</div>
+            </div>
+        </header>
+        <main class="main-content">
+            <div class="tab-content active" id="home-tab">
+                <div class="card">
+                    <div class="card-title">
+                        <span class="material-symbols-outlined">tune</span>
+                        Network Tweaks
                     </div>
-
-                    <div class="card">
-                        <h2 class="card-title" data-translate-key="home_card_profiles_title">🎯 Performance Profiles</h2>
-                        <p class="card-desc" data-translate-key="home_card_profiles_desc">Select optimized presets tailored for your specific use case and requirements</p>
-                        <div class="select-container">
-                            <select id="mode">
-                                <option value="balanced" data-translate-key="home_mode_balanced">🌊 Balanced — Optimal everyday performance</option>
-                                <option value="gaming" data-translate-key="home_mode_gaming">🎮 Gaming — Ultra-low latency configuration</option>
-                                <option value="streaming" data-translate-key="home_mode_streaming">📺 Streaming — High-bandwidth optimization</option>
-                                <option value="download" data-translate-key="home_mode_download">🌐 Download — Maximum buffer for fast downloads</option>
-                                <option value="social" data-translate-key="home_mode_social">📱 Social Media — Lightweight & responsive</option>
-                                <option value="outdoor" data-translate-key="home_mode_outdoor">🏕️ Outdoor — Mobile signal & stability focused</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <h2 class="card-title" data-translate-key="home_card_dns_title">🌐 DNS Resolution</h2>
-                        <p class="card-desc" data-translate-key="home_card_dns_desc">Configure high-performance DNS providers for enhanced Browse speed and reliability</p>
-                        <div class="select-container">
-                            <select id="dns"></select>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <h2 class="card-title" data-translate-key="home_card_protocol_title">📡 Protocol Optimization</h2>
-                        <p class="card-desc" data-translate-key="home_card_protocol_desc">Fine-tune congestion control algorithms for maximum throughput efficiency</p>
-                        <div class="select-container">
-                            <select id="ccAlgo"></select>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <h2 class="card-title">📊 Network Diagnostics</h2>
-                        <p class="card-desc">Real-time connectivity monitoring with comprehensive network health analysis</p>
-                        <div class="ping-display" id="pingDisplay">
-                            <div class="ping-value" id="pingResult">-- ms</div>
-                            <div class="ping-label">
-                                <span class="status-indicator"></span>
-                                <span>Live connectivity measurement</span>
-                            </div>
-                        </div>
-                        <div class="action-buttons">
-                            <button class="btn" onclick="refreshPing(event)">🔄 Test Connection</button>
-                            <button class="btn btn-secondary" onclick="cleanLogs(event)">🧹 Clear Diagnostics</button>
-                        </div>
-                        <p class="card-desc" style="margin-top: 20px; margin-bottom: 0;">
-                            <strong>Clear Diagnostics:</strong>
-                            <span>Removes all network event logs and diagnostic data for optimal system performance</span>
-                        </p>
+                    <div class="select-container">
+                        <select class="select-field" id="tweak-selector"></select>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <div id="settings-view" class="view">
-            <div class="container">
-                <header class="header">
-                    <h1 class="logo" data-translate-key="settings_header">Settings</h1>
-                    <p class="tagline" data-translate-key="settings_tagline">Customize your application experience</p>
-                </header>
-                <div class="grid">
-                    <div class="card">
-                        <h2 class="card-title"><span class="material-icons-outlined">palette</span><span data-translate-key="settings_card_appearance_title">Appearance</span></h2>
-                        <p class="card-desc" data-translate-key="settings_card_appearance_desc">Adjust the look and feel of the application.</p>
-                        <div class="switch-container">
-                            <span data-translate-key="settings_switch_dark_mode">Enable Dark Mode</span>
-                            <label class="switch"><input type="checkbox" id="themeToggleSwitch"><span class="slider"></span></label>
-                        </div>
+                <div class="card">
+                    <div class="card-title">
+                        <span class="material-symbols-outlined">dns</span>
+                        DNS Options
                     </div>
-                    <div class="card">
-                        <h2 class="card-title"><span class="material-icons-outlined">translate</span><span data-translate-key="settings_card_language_title">Language</span></h2>
-                        <p class="card-desc" data-translate-key="settings_card_language_desc">Choose your preferred language for the interface.</p>
-                        <div class="select-container">
-                            <select id="languageSelector">
-                                <option value="en">🇬🇧 English</option>
-                                <option value="id">🇮🇩 Bahasa Indonesia</option>
-                            </select>
-                        </div>
+                    <div class="select-container">
+                        <select class="select-field" id="dns-selector"></select>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <div id="update-view" class="view">
-            <div class="container">
-                <header class="header">
-                    <h1 class="logo" data-translate-key="update_header">Update</h1>
-                    <p class="tagline" data-translate-key="update_tagline">Check for the latest updates and contributions</p>
-                </header>
-                <div class="card profile-card">
-                    <div class="profile-icon-container">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.03 0-4.43-.82-6.14-2.88a9.947 9.947 0 0 1 12.28 0C16.43 19.18 14.03 20 12 20z"></path>
-                        </svg>
+                <div class="card">
+                    <div class="card-title">
+                        <span class="material-symbols-outlined">settings_ethernet</span>
+                        TCP Configurations
                     </div>
-                    <h2 class="card-title" style="justify-content: center;">fuckyoustan</h2>
-                    <p class="card-desc" data-translate-key="update_card_desc">Follow my work on GitHub or join our Telegram channel for updates and discussions.</p>
-                    <div class="action-buttons">
-                        <button class="btn" data-url="https://github.com/fuckyoustan">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"></svg>
-                            <span data-translate-key="update_btn_profile">View Profile</span>
-                        </button>
-                        <button class="btn btn-secondary" data-url="https://t.me/EverythingAboutArchive">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="m9.417 15.181-.397 5.584c.568 0 .814-.244 1.109-.537l2.663-2.545 5.518 4.041c1.012.564 1.725.267 1.998-.931L22.092 3.814c.34-1.458-.588-2.15-1.548-1.72L1.531 9.77c-1.545.622-1.542 1.53.285 1.932l4.895 1.534 11.402-7.21c.527-.332.99-.155.558.194z"></path></svg>
-                            <span data-translate-key="update_btn_telegram">Join Telegram</span>
+                    <div class="select-container">
+                        <select class="select-field" id="tcp-selector"></select>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">
+                        <span class="material-symbols-outlined">do_not_disturb_on</span>
+                        Network Isolate
+                    </div>
+                    <div class="toggle-container">
+                        <div class="toggle-label">Enable Network Isolate Mode</div>
+                        <div class="toggle-switch" id="dnd-toggle">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+                    <div class="app-input-container">
+                        <input type="text" class="app-input" id="package-input" placeholder="e.g. com.whatsapp">
+                        <button class="add-app-button" id="add-package-btn">
+                            <span class="material-symbols-outlined">add</span>
                         </button>
                     </div>
+                    <div class="error-message" id="package-error">Please enter a valid package name (e.g. com.whatsapp)</div>
+                    <div class="section-title">List Apps</div>
+                    <div class="app-list" id="excluded-apps-list"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title">
+                        <span class="material-symbols-outlined">wifi</span>
+                        WiFi List
+                    </div>
+                    <div class="wifi-controls">
+                        <button class="control-button" id="refresh-wifi-btn">
+                            <span class="material-symbols-outlined">refresh</span>
+                            Refresh
+                        </button>
+                        <button class="control-button" id="backup-wifi-btn">
+                            <span class="material-symbols-outlined">backup</span>
+                            Backup
+                        </button>
+                    </div>
+                    <div class="wifi-list-container">
+                        <div class="wifi-list" id="wifi-list">
+                            <div class="wifi-loading">Loading WiFi networks...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
+            <div class="tab-content" id="settings-tab">
+                <div class="card">
+                    <div class="card-title">
+                        <span class="material-symbols-outlined">palette</span>
+                        Appearance
+                    </div>
+                    <div class="settings-item">
+                        <div class="settings-label">Enable Dark Mode</div>
+                        <div class="toggle-switch" id="theme-toggle">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">
+                        <span class="material-symbols-outlined">language</span>
+                        Language
+                    </div>
+                    <div class="select-container">
+                        <select class="select-field" id="language-selector">
+                            <option value="en">🇬🇧 English</option>
+                            <option value="id">🇮🇩 Bahasa Indonesia</option>
+                            <option value="zh">🇨🇳 中文 (Chinese)</option>
+                            <option value="ar">🇸🇦 العربية (Arabic)</option>
+                        </select>
+                    </div>
+                </div>
+                 <div class="card">
+                    <div class="card-title">
+                        <span class="material-symbols-outlined">update</span>
+                        Update
+                    </div>
+                    <div class="settings-item">
+                        <div class="settings-label">Latest version</div>
+                        <div class="toggle-label">v5.0</div>
+                    </div>
+                    <div class="settings-item">
+                        <div class="settings-label">Check for Auto Update</div>
+                        <div class="toggle-switch active" id="update-toggle">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-content" id="about-tab">
+                <div class="card">
+                    <div class="card-title">
+                        <span class="material-symbols-outlined">info</span>
+                        About PingPimp
+                    </div>
+                    <p style="margin-bottom: 12px; line-height: 1.6;">PingPimp is a Magisk module designed to give you full control over your device's network settings. Optimize your network experience for different use cases and take control of your connectivity</p>
+                    <p style="color: var(--on-surface-variant); font-size: 14px;">© 2025 PingPimp Module. All rights reserved</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">
+                        <span class="material-symbols-outlined">person</span>
+                        Developer
+                    </div>
+                    <div class="developer-card">
+                        <div class="developer-avatar">
+                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="36px" height="36px" color="var(--primary)">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.03 0-4.43-.82-6.14-2.88a9.947 9.947 0 0 1 12.28 0C16.43 19.18 14.03 20 12 20z"></path>
+                            </svg>
+                        </div>
+                        <div class="developer-info">
+                            <h3>@fuckyoustan</h3>
+                            <p>Follow my work and get updates.</p>
+                        </div>
+                    </div>
+                    <div class="support-links">
+                        <button class="support-button" data-url="https://t.me/EverythingAboutArchive">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;"><path d="m9.417 15.181-.397 5.584c.568 0 .814-.244 1.109-.537l2.663-2.545 5.518 4.041c1.012.564 1.725.267 1.998-.931L22.092 3.814c.34-1.458-.588-2.15-1.548-1.72L1.531 9.77c-1.545.622-1.542 1.53.285 1.932l4.895 1.534 11.402-7.21c.527-.332.99-.155.558.194z"></path></svg>
+                            Telegram
+                        </button>
+                        <button class="support-button" data-url="https://github.com/fuckyoustan">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"></path></svg>
+                            GitHub
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+                
+        <nav class="bottom-navigation">
+            <button class="tab-button active" data-tab="home">
+                  <div class="navigation-icon-container">
+                       <span class="material-symbols-outlined">home</span>
+                  </div>
+                  <span class="label">Home</span>
+            </button>
+            <button class="tab-button" data-tab="settings">
+                  <div class="navigation-icon-container">
+                      <span class="material-symbols-outlined">settings</span>
+                  </div>
+                  <span class="label">Settings</span>
+            </button>
+            <button class="tab-button" data-tab="about">
+                  <div class="navigation-icon-container">
+                      <span class="material-symbols-outlined">info</span>
+                  </div>
+                  <span class="label">About</span>
+           </button>
+        </nav>
+    </div>
+    
+    <div class="modal-overlay" id="subscription-modal">
+        <div class="modal">
+            <div class="modal-title">
+                <span class="material-symbols-outlined">lock</span>
+                Subscription Required
+            </div>
+            <div class="modal-message">
+                To use this feature, you must first subscribe to support developer
+            </div>
+            <button class="modal-button" id="close-modal">OK</button>
         </div>
-    </main>
-
-    <nav class="bottom-nav">
-        <button class="nav-item active" data-view="home-view">
-            <span class="icon-container">
-                <span class="material-icons-outlined icon-outlined">home</span>
-                <span class="material-icons-outlined icon-filled">home</span>
-            </span>
-            <span class="label" data-translate-key="nav_home">Home</span>
-        </button>
-        <button class="nav-item" data-view="settings-view">
-            <span class="icon-container">
-                <span class="material-icons-outlined icon-outlined">settings</span>
-                <span class="material-icons-outlined icon-filled">settings</span>
-            </span>
-            <span class="label" data-translate-key="nav_settings">Settings</span>
-        </button>
-        <button class="nav-item" data-view="update-view">
-            <span class="icon-container">
-                <span class="material-icons-outlined icon-outlined">info</span>
-                <span class="material-icons-outlined icon-filled">info</span>
-            </span>
-            <span class="label" data-translate-key="nav_update">Update</span>
-        </button>
-    </nav>
-
+    </div>
+    
     <script src="script.js"></script>
 </body>
-
-</html>
+</html>                                                                                                                                                  </html>
