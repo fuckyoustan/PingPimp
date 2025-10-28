@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
-    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PingPimp - Network Control</title>
+    <title>PingPimp</title>
+    <script type="module">
+        import { fullScreen } from "https://cdn.jsdelivr.net/npm/kernelsu@1.0.6/+esm";
+        window.kernelsuFullScreen = fullScreen;
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
     <link rel="stylesheet" href="style.css">
@@ -12,13 +15,47 @@
     <div id="toast-container"></div>
     <div class="app-container">
         <header class="app-header">
-            <div>
-                <h1 class="app-title">PingPimp</h1>
-                <div class="app-version">v5.0</div>
+            <div class="header-content">
+                <div class="header-title">
+                    <h1 class="app-title">PingPimp</h1>
+                    <div class="app-version">v6.0</div>
+                </div>
+                <div class="status-indicator" id="status-indicator">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span class="status-text" id="status-text">Offline</span>
+                </div>
             </div>
         </header>
         <main class="main-content">
             <div class="tab-content active" id="home-tab">
+            <div class="card">
+                <div class="card-title">
+                    <span class="material-symbols-outlined">speed</span>
+                    Network Monitoring
+                </div>
+                <div class="monitoring-grid">
+                    <div class="monitoring-item">
+                        <div class="monitoring-label">Ping</div>
+                        <div class="monitoring-value" id="ping-value">-- ms</div>
+                    </div>
+                    <div class="monitoring-item">
+                        <div class="monitoring-label">Latency</div>
+                        <div class="monitoring-value" id="latency-value">-- ms</div>
+                    </div>
+                    <div class="monitoring-item">
+                        <div class="monitoring-label">Download</div>
+                        <div class="monitoring-value" id="download-value">-- Mbps</div>
+                    </div>
+                    <div class="monitoring-item">
+                        <div class="monitoring-label">Upload</div>
+                        <div class="monitoring-value" id="upload-value">-- Mbps</div>
+                    </div>
+                </div>
+                <button class="add-app-button speedtest-button" id="run-speedtest-btn" style="width: 100%; margin-top: 16px;">
+                    <span class="material-symbols-outlined">bolt</span>
+                    Speedtest
+                </button>
+            </div>
                 <div class="card">
                     <div class="card-title">
                         <span class="material-symbols-outlined">tune</span>
@@ -123,7 +160,7 @@
                     </div>
                     <div class="settings-item">
                         <div class="settings-label">Latest version</div>
-                        <div class="toggle-label">v5.0</div>
+                        <div class="toggle-label">v6.0</div>
                     </div>
                     <div class="settings-item">
                         <div class="settings-label">Check for Auto Update</div>
@@ -171,7 +208,6 @@
                 </div>
             </div>
         </main>
-                
         <nav class="bottom-navigation">
             <button class="tab-button active" data-tab="home">
                   <div class="navigation-icon-container">
@@ -193,7 +229,6 @@
            </button>
         </nav>
     </div>
-    
     <div class="modal-overlay" id="subscription-modal">
         <div class="modal">
             <div class="modal-title">
@@ -206,7 +241,6 @@
             <button class="modal-button" id="close-modal">OK</button>
         </div>
     </div>
-    
     <script src="script.js"></script>
 </body>
-</html>                                                                                                                                                  </html>
+</html>
