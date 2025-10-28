@@ -73,25 +73,61 @@ body {
 .app-header {
     background-color: var(--surface);
     padding: 20px 16px;
+}
+
+.header-content {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    box-shadow: 0 2px 4px var(--shadow);
-    z-index: 10;
-    border-bottom: 1px solid var(--surface-variant);
+    align-items: center;
 }
+
+.header-title {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
 .app-title {
-    font-size: 24px;
-    font-weight: 500;
-    color: var(--on-surface);
+    margin: 0;
+}
+
+.app-version {
+    margin: 0;
+}
+.status-indicator {
     display: flex;
     align-items: center;
-    gap: 8px;
-}
-.app-version {
-    font-size: 14px;
+    gap: 6px; 
+    font-size: 12px;
     color: var(--on-surface-variant);
-    opacity: 0.8;
+    background-color: var(--surface-variant);
+    padding: 4px 8px;
+    border-radius: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    background-color: #F44336;
+    transition: background-color 0.3s ease;
+}
+
+.status-dot.active {
+    background-color: #4CAF50;
+}
+
+.status-text {
+    transition: color 0.3s ease;
+}
+.status-indicator.active .status-text {
+    color: #4CAF50;
+}
+
+.status-indicator:not(.active) .status-text {
+    color: #F44336;
 }
 .main-content {
     flex: 1;
@@ -167,12 +203,12 @@ body {
     background-color: var(--surface);
     border-radius: 50%;
     transition: var(--transition);
-    box-shadow: none; /* Menghapus bayangan dari slider */
+    box-shadow: none;
 }
 .toggle-switch.active .toggle-slider {
     left: 22px;
     background-color: var(--on-primary-container);
-    box-shadow: none; /* Memastikan tidak ada bayangan saat aktif */
+    box-shadow: none;
 }
 .mode-selector {
     display: grid;
@@ -536,7 +572,6 @@ body {
         padding: 12px;
     }
 }
-
 @media (min-width: 481px) {
     .app-container {
         border-left: 1px solid var(--surface-variant);
@@ -668,8 +703,6 @@ body {
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    
-    /* Perbaikan untuk menghilangkan bayangan dan highlight */
     box-shadow: none;
     outline: none;
     -webkit-tap-highlight-color: transparent;
@@ -678,7 +711,6 @@ body {
 .control-button:hover {
     box-shadow: none;
 }
-
 .control-button:active {
     box-shadow: none;
     transform: scale(0.98);
@@ -687,19 +719,16 @@ body {
     margin-right: 6px;
     font-size: 18px;
 }
-
 .wifi-list-container {
     margin-top: 16px;
     max-height: 300px;
     overflow-y: auto;
 }
-
 .wifi-loading, .wifi-error, .wifi-empty {
     text-align: center;
     padding: 20px;
     color: var(--on-surface-variant);
 }
-
 .wifi-item {
     display: flex;
     align-items: center;
@@ -709,26 +738,21 @@ body {
     background-color: var(--surface);
     transition: var(--transition);
 }
-
 .wifi-item:hover {
     background-color: var(--surface-variant);
 }
-
 .wifi-info {
     flex: 1;
 }
-
 .wifi-ssid {
     font-weight: 500;
     color: var(--on-surface);
     margin-bottom: 4px;
 }
-
 .wifi-password {
     font-size: 14px;
     color: var(--on-surface-variant);
 }
-
 .copy-password {
     background: none;
     border: none;
@@ -739,8 +763,86 @@ body {
     display: flex;
     transition: var(--transition);
 }
-
 .copy-password:hover {
     background-color: var(--surface-variant);
     color: var(--on-surface);
+}
+.monitoring-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+}
+.monitoring-item {
+    background-color: var(--surface-variant);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    transition: var(--transition);
+}
+.monitoring-item:hover {
+    background-color: var(--surface);
+}
+.monitoring-label {
+    font-size: 12px;
+    color: var(--on-surface-variant);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.monitoring-value {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--on-surface);
+    transition: color 0.3s ease;
+}
+.monitoring-value.good {
+    color: #4CAF50;
+}
+.monitoring-value.warning {
+    color: #FFC107;
+}
+.monitoring-value.poor {
+    color: #F44336;
+}
+.speedtest-button {
+    width: 100%;
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.speedtest-button.checking {
+    position: relative;
+    pointer-events: none; 
+}
+.speedtest-button.checking::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    width: 20px;
+    height: 20px;
+    border: 2px solid transparent; 
+    border-top-color: var(--on-primary-container);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+.speedtest-button.checking span:not(.material-symbols-outlined) {
+    margin-left: 30px;
+}
+.speedtest-button.checking .material-symbols-outlined {
+    opacity: 0;
+}
+.speedtest-button.error {
+    background-color: #B00020;
+    color: #FFFFFF;
+}
+.speedtest-button.error:hover {
+    background-color: #B00020;
+    box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15), 0px 2px 4px rgba(0, 0, 0, 0.08);
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
