@@ -1,0 +1,2 @@
+persist.sys.radio.force_lte_ca=true
+persist.sys.fflag.override.settings_network_and_internet_v2=true
