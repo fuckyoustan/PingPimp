@@ -1,38 +1,88 @@
-![banner](https://raw.githubusercontent.com/fuckyoustan/PingPimp/refs/heads/main/Banner.jpg)
+![banner](https://raw.githubusercontent.com/fuckyoustan/PingPimp/refs/heads/main/a.gif)
 
-If your network is trippin' with lag and high ping, you need **PingPimp**. This beast gets all up in your Android's TCP/IP guts and slaps your connection into shape aggressively, smartly, and smooth AF.
+<div align="center">
 
-# ✨ Features
+# ⚡ PingPimp
+**The Ultimate Android Network Alchemist for Gamers & Power Users.**
 
-- 🔧 Aggressive Network Tweaks
-Cranks up TCP/IP settings, queueing strategies, and system buffers tuned for lower latency and smoother packet handling.
-- 🌐 Public DNS Selector (25+ Options)
-Easily switch between top-tier DNS providers like Cloudflare, Google, NextDNS, AdGuard, and more straight from the WebUI.
-- 📡 Congestion Control Mode Selector (15 Modes)
-Pick your preferred TCP congestion control algorithm (BBR, BBR2, Cubic, Reno, Hybla, etc.) for better throughput and stability based on your device.
-- 🚀 IPv6 / ARP / Neigh Tweaks
-Optimizes neighbor table aging, delays, and filters reducing noisy background traffic and improving connection handling.
-- 🧼 WLAN Log Cleaner
-Automatically clears cluttered WiFi logs to keep your system clean, lightweight, and snappy.
-- 🖥 WebUI Integration
-Manage all tweaks on the fly without terminal hassle. Real time switching for DNS, congestion control, and more.
+<a href="https://github.com/fuckyoustan/PingPimp/blob/main/LICENSE"><img src="https://img.shields.io/badge/Apache-white?style=for-the-badge&logo=andela&logoColor=white&label=License&labelColor=222" alt="License"></a>
 
-## 📦 Installation
+*Stop blaming the lag. It's time to take absolute control of your connection.*
 
-1. Flash via Root Manager
-2. Reboot
-3. Tweak it your way!
+---
 
-# 📝 Note for users
-Some congestion control options may not work on all devices.
-To check which ones your device supports, run these commands in a terminal or shell:
+</div>
 
-```bash
-sysctl net.ipv4.tcp_available_congestion_control
-```
+## 🤔 Why PingPimp?
+Let's be honest: 90% of Android "network optimizer" modules out there are just placebo scripts that blindly inject random values into your `sysctl.conf` and hope for the best. 
 
-This helps you pick the best setting for your device
+**PingPimp is different.** We don't believe in blind tweaks. We believe in giving *you* the wheel. PingPimp bridges the gap between hardcore Linux networking commands (`iptables`, `ip6tables`, DSCP/TOS routing) and a gorgeous, user-friendly interface. Whether you are a hardcore gamer experiencing sudden ping spikes or a power user trying to save battery and data, PingPimp molds your network exactly how you want it.
 
-## 💬 Support / Chat
+## ✨ Key Features
 
-Drop your bugs, feature requests, or anything else here 👉 [Telegram](https://t.me/fuckyoustan)
+PingPimp is packed with real, measurable network manipulation tools accessible via a clean **Material You 3 WebUI**:
+
+* 🎮 **Turbo Boost (Packet Prioritization)**
+    Give your favorite games the VIP lane. PingPimp uses `iptables` to tag your game's traffic (DSCP/TOS), ensuring your router and kernel process your game packets before anything else. Say goodbye to ping drops during a clutch.
+* 🚫 **App Jail (Isolate Mode)**
+    Sneaky background apps eating your bandwidth? Not anymore. Cut off internet access to specific user or system apps entirely with a single toggle. 
+* 🎛️ **TCP & Network Wizards**
+    Easily switch your TCP Congestion Control algorithms to match your current needs. Comes with curated presets (Game, Streaming, Download, Browsing) that actually work.
+* 🛡️ **Private DNS Lounge**
+    Secure your queries and bypass restrictions. Choose from our massive, built-in list of top-tier encrypted DNS providers (Cloudflare, AdGuard, Quad9, etc.), or easily set up your own Custom DNS.
+* 🚀 **IPv6 Nuke & Netstat Optimizer**
+    Force IPv4 routing to prevent IPv6 DNS leaks and routing overheads that cause latency spikes in-game.
+* 🌍 **Multi-Language Support**
+    Speaks your language! Fully translated into English, Indonesian, Japanese, Arabic, and Russian with fun, humanized localization.
+
+## 🥊 PingPimp vs The Rest
+
+| Feature | PingPimp ⚡ | Other Modules 🐢 |
+| :--- | :--- | :--- |
+| **Interface** | Gorgeous Material You WebUI | Terminal / Volume Keys only |
+| **App Targeting** | Yes (Select specific apps to boost/isolate) | No (Applies globally, causing instability) |
+| **Mechanism** | Real `iptables` & Kernel-level routing | Placebo `build.prop` edits |
+| **Flexibility** | Change tweaks on the fly | Requires rebooting every time |
+
+## 📸 Sneak Peek (WebUI)
+
+<p align="center">
+  <img src="screenshot/1.png" alt="Home Screen" width="45%">
+  <img src="screenshot/2.png" alt="Config Screen" width="45%">
+</p>
+<p align="center">
+  <img src="screenshot/3.png" alt="Isolate Screen" width="45%">
+  <img src="screenshot/5.png" alt="Boost Screen" width="45%">
+</p>
+
+## ⚙️ Installation
+
+PingPimp requires a rooted Android device (Android 10+).
+
+1. Download the latest `PingPimp-vX.X.zip` from the [Releases](../../releases) page.
+2. Open your Root Manager (**KernelSU**, **Magisk**, or **APatch**).
+3. Go to the Modules tab and select `Install from storage`.
+4. Flash the `.zip` file and reboot your device.
+5. **How to use:** Open your Root Manager app, go to the Modules section, and tap on **PingPimp** to open the WebUI dashboard.
+
+## 🛠️ Compatibility
+* **Root:** KernelSU (Recommended for WebUI), Magisk, or APatch.
+* **OS:** Android 10 and above.
+* **Architecture:** ARM64
+
+## 💬 Community & Support
+Got a question, bug report, or just want to hang out with fellow flashaholics? Join our community:
+
+[![Telegram Channel](https://img.shields.io/badge/Telegram-Channel-2CA5E0.svg?style=for-the-badge&logo=telegram)](https://t.me/EverythingAboutArchive)
+[![Telegram Group](https://img.shields.io/badge/Telegram-Group-2CA5E0.svg?style=for-the-badge&logo=telegram)](https://t.me/EverythingAboutArchiveGroup)
+
+## ⚠️ Disclaimer & Credits
+PingPimp messes with core Linux networking tables. While it is designed to be completely safe and reversible (just uncheck a toggle or uninstall the module), I am not responsible for thermonuclear wars, missed alarms, or you getting banned from your favorite game (though you won't, because we don't touch game files).
+
+* Massive thanks to the **KernelSU** team for the WebUI framework.
+* Crafted with ❤️ and too much caffeine by [@fuckyoustan](https://github.com/fuckyoustan).
+
+---
+<div align="center">
+  <b>If PingPimp helped you win your matches, don't forget to drop a ⭐ on this repository!</b>
+</div>
