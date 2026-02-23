@@ -438,10 +438,11 @@ input:checked + .switch-slider:before {
   margin-bottom: 20px;
   padding: 8px 4px;
 }
+
 .tab-header-icon {
   width: 42px;
   height: 42px;
-  border-radius: 50%;
+  border-radius: 14px; 
   background-color: var(--app-primary-container);
   color: var(--app-on-primary-container);
   display: flex;
@@ -449,7 +450,10 @@ input:checked + .switch-slider:before {
   justify-content: center;
   flex-shrink: 0;
 }
-.tab-header-icon .material-symbols-outlined { font-size: 24px; flex-shrink: 0; }
+.tab-header-icon .material-symbols-outlined { 
+  font-size: 24px; 
+  flex-shrink: 0; 
+}
 
 .tab-header-text h2 {
   font-size: 20px;
