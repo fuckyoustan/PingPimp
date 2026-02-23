@@ -1,0 +1,234 @@
+#!/system/bin/sh
+
+MODDIR="/data/adb/modules/PingPimp"
+
+apply() {
+    for cmd in "$@"; do
+        eval "$cmd" >/dev/null 2>&1
+    done
+}
+
+MODE="$1"
+
+case "$MODE" in
+
+--default)
+apply \
+"echo '4096' > /proc/sys/net/core/netdev_max_backlog" \
+"echo '262144' > /proc/sys/net/core/rmem_default" \
+"echo '524288' > /proc/sys/net/core/rmem_max" \
+"echo '262144' > /proc/sys/net/core/wmem_default" \
+"echo '524288' > /proc/sys/net/core/wmem_max" \
+"echo '1' > /proc/sys/net/ipv4/tcp_low_latency" \
+"echo '0' > /proc/sys/net/ipv4/tcp_slow_start_after_idle" \
+"echo '3' > /proc/sys/net/ipv4/tcp_syn_retries" \
+"echo '4096 87380 524288' > /proc/sys/net/ipv4/tcp_rmem" \
+"echo '4096 65536 524288' > /proc/sys/net/ipv4/tcp_wmem" \
+"echo '8192' > /proc/sys/net/ipv4/udp_rmem_min" \
+"echo '8192' > /proc/sys/net/ipv4/udp_wmem_min" \
+"echo '3' > /proc/sys/net/ipv4/tcp_fastopen" \
+"echo '20' > /proc/sys/net/ipv4/tcp_fin_timeout" \
+"echo '1' > /proc/sys/net/ipv4/tcp_window_scaling" \
+"echo '1' > /proc/sys/net/ipv4/tcp_timestamps" \
+"echo '0' > /proc/sys/net/ipv4/tcp_no_metrics_save" \
+"echo '1' > /proc/sys/net/ipv4/route/flush"
+;;
+
+--game)
+apply \
+"echo '4096' > /proc/sys/net/core/netdev_max_backlog" \
+"echo '131072' > /proc/sys/net/core/rmem_default" \
+"echo '262144' > /proc/sys/net/core/rmem_max" \
+"echo '131072' > /proc/sys/net/core/wmem_default" \
+"echo '262144' > /proc/sys/net/core/wmem_max" \
+"echo '1' > /proc/sys/net/ipv4/tcp_low_latency" \
+"echo '0' > /proc/sys/net/ipv4/tcp_slow_start_after_idle" \
+"echo '3' > /proc/sys/net/ipv4/tcp_syn_retries" \
+"echo '4096 65536 262144' > /proc/sys/net/ipv4/tcp_rmem" \
+"echo '4096 65536 262144' > /proc/sys/net/ipv4/tcp_wmem" \
+"echo '32768' > /proc/sys/net/ipv4/udp_rmem_min" \
+"echo '32768' > /proc/sys/net/ipv4/udp_wmem_min" \
+"echo '3' > /proc/sys/net/ipv4/tcp_fastopen" \
+"echo '10' > /proc/sys/net/ipv4/tcp_fin_timeout" \
+"echo '1' > /proc/sys/net/ipv4/tcp_window_scaling" \
+"echo '0' > /proc/sys/net/ipv4/tcp_timestamps" \
+"echo '1' > /proc/sys/net/ipv4/tcp_no_metrics_save" \
+"echo '1' > /proc/sys/net/ipv4/route/flush"
+;;
+
+--download)
+apply \
+"echo '16384' > /proc/sys/net/core/netdev_max_backlog" \
+"echo '262144' > /proc/sys/net/core/rmem_default" \
+"echo '2097152' > /proc/sys/net/core/rmem_max" \
+"echo '262144' > /proc/sys/net/core/wmem_default" \
+"echo '2097152' > /proc/sys/net/core/wmem_max" \
+"echo '0' > /proc/sys/net/ipv4/tcp_low_latency" \
+"echo '0' > /proc/sys/net/ipv4/tcp_slow_start_after_idle" \
+"echo '3' > /proc/sys/net/ipv4/tcp_syn_retries" \
+"echo '4096 87380 2097152' > /proc/sys/net/ipv4/tcp_rmem" \
+"echo '4096 65536 2097152' > /proc/sys/net/ipv4/tcp_wmem" \
+"echo '8192' > /proc/sys/net/ipv4/udp_rmem_min" \
+"echo '8192' > /proc/sys/net/ipv4/udp_wmem_min" \
+"echo '3' > /proc/sys/net/ipv4/tcp_fastopen" \
+"echo '30' > /proc/sys/net/ipv4/tcp_fin_timeout" \
+"echo '1' > /proc/sys/net/ipv4/tcp_window_scaling" \
+"echo '1' > /proc/sys/net/ipv4/tcp_timestamps" \
+"echo '0' > /proc/sys/net/ipv4/tcp_no_metrics_save" \
+"echo '1' > /proc/sys/net/ipv4/route/flush"
+;;
+
+--streaming)
+apply \
+"echo '4096' > /proc/sys/net/core/netdev_max_backlog" \
+"echo '524288' > /proc/sys/net/core/rmem_default" \
+"echo '1048576' > /proc/sys/net/core/rmem_max" \
+"echo '262144' > /proc/sys/net/core/wmem_default" \
+"echo '1048576' > /proc/sys/net/core/wmem_max" \
+"echo '0' > /proc/sys/net/ipv4/tcp_low_latency" \
+"echo '0' > /proc/sys/net/ipv4/tcp_slow_start_after_idle" \
+"echo '3' > /proc/sys/net/ipv4/tcp_syn_retries" \
+"echo '4096 87380 1048576' > /proc/sys/net/ipv4/tcp_rmem" \
+"echo '4096 65536 1048576' > /proc/sys/net/ipv4/tcp_wmem" \
+"echo '16384' > /proc/sys/net/ipv4/udp_rmem_min" \
+"echo '16384' > /proc/sys/net/ipv4/udp_wmem_min" \
+"echo '3' > /proc/sys/net/ipv4/tcp_fastopen" \
+"echo '20' > /proc/sys/net/ipv4/tcp_fin_timeout" \
+"echo '1' > /proc/sys/net/ipv4/tcp_window_scaling" \
+"echo '1' > /proc/sys/net/ipv4/tcp_timestamps" \
+"echo '1' > /proc/sys/net/ipv4/route/flush"
+;;
+
+--social | --browsing)
+apply \
+"echo '4096' > /proc/sys/net/core/netdev_max_backlog" \
+"echo '131072' > /proc/sys/net/core/rmem_default" \
+"echo '524288' > /proc/sys/net/core/rmem_max" \
+"echo '131072' > /proc/sys/net/core/wmem_default" \
+"echo '524288' > /proc/sys/net/core/wmem_max" \
+"echo '1' > /proc/sys/net/ipv4/tcp_low_latency" \
+"echo '0' > /proc/sys/net/ipv4/tcp_slow_start_after_idle" \
+"echo '3' > /proc/sys/net/ipv4/tcp_syn_retries" \
+"echo '4096 87380 524288' > /proc/sys/net/ipv4/tcp_rmem" \
+"echo '4096 65536 524288' > /proc/sys/net/ipv4/tcp_wmem" \
+"echo '8192' > /proc/sys/net/ipv4/udp_rmem_min" \
+"echo '8192' > /proc/sys/net/ipv4/udp_wmem_min" \
+"echo '3' > /proc/sys/net/ipv4/tcp_fastopen" \
+"echo '10' > /proc/sys/net/ipv4/tcp_fin_timeout" \
+"echo '1' > /proc/sys/net/ipv4/tcp_window_scaling" \
+"echo '1' > /proc/sys/net/ipv4/tcp_timestamps" \
+"echo '1' > /proc/sys/net/ipv4/route/flush"
+;;
+
+--outdoor)
+apply \
+"echo '4096' > /proc/sys/net/core/netdev_max_backlog" \
+"echo '262144' > /proc/sys/net/core/rmem_default" \
+"echo '1048576' > /proc/sys/net/core/rmem_max" \
+"echo '262144' > /proc/sys/net/core/wmem_default" \
+"echo '1048576' > /proc/sys/net/core/wmem_max" \
+"echo '1' > /proc/sys/net/ipv4/tcp_low_latency" \
+"echo '0' > /proc/sys/net/ipv4/tcp_slow_start_after_idle" \
+"echo '5' > /proc/sys/net/ipv4/tcp_syn_retries" \
+"echo '4096 87380 1048576' > /proc/sys/net/ipv4/tcp_rmem" \
+"echo '4096 65536 1048576' > /proc/sys/net/ipv4/tcp_wmem" \
+"echo '16384' > /proc/sys/net/ipv4/udp_rmem_min" \
+"echo '16384' > /proc/sys/net/ipv4/udp_wmem_min" \
+"echo '3' > /proc/sys/net/ipv4/tcp_fastopen" \
+"echo '20' > /proc/sys/net/ipv4/tcp_fin_timeout" \
+"echo '1' > /proc/sys/net/ipv4/route/flush"
+;;
+
+--state)
+apply \
+"cmd settings put global netstats_enabled 0" \
+"cmd wifi set-scan-always-available disabled" \
+"cmd wifi set-verbose-logging disabled -l 0"
+;;
+
+--unstate)
+apply \
+"cmd settings delete global netstats_enabled" \
+"cmd wifi set-scan-always-available enabled" \
+"cmd wifi set-verbose-logging enabled -l 1"
+;;
+
+--saver)
+apply \
+"cmd netpolicy set restrict-background true" \
+"cmd settings put global ingress_rate_limit_bytes_per_second 1048576" 
+;;
+
+--unsaver)
+apply \
+"cmd netpolicy set restrict-background false" \
+"cmd settings delete global ingress_rate_limit_bytes_per_second"
+;;
+
+--disable)
+apply \
+"sysctl -w net.ipv6.conf.all.disable_ipv6=1" \
+"sysctl -w net.ipv6.conf.default.disable_ipv6=1" \
+"sysctl -w net.ipv6.conf.lo.disable_ipv6=1"
+;;
+
+--enable)
+apply \
+"sysctl -w net.ipv6.conf.all.disable_ipv6=0" \
+"sysctl -w net.ipv6.conf.default.disable_ipv6=0" \
+"sysctl -w net.ipv6.conf.lo.disable_ipv6=0"
+;;
+
+--boot)
+    if [ -f "$MODDIR/preset.txt" ]; then
+        PRESET=$(cat "$MODDIR/preset.txt" | tr -d '\r' | tr -d '\n' | tr '[:upper:]' '[:lower:]')
+        case "$PRESET" in
+            "game") "$0" --game ;;
+            "download") "$0" --download ;;
+            "streaming") "$0" --streaming ;;
+            "social media"|"social") "$0" --social ;;
+            "browsing") "$0" --browsing ;;
+            "outdoor") "$0" --outdoor ;;
+            *) "$0" --default ;;
+        esac
+    else
+        "$0" --default
+    fi
+
+    if [ -f "$MODDIR/ipv6_state.txt" ]; then
+        IPV6_STATE=$(cat "$MODDIR/ipv6_state.txt" | tr -d '\r' | tr -d '\n')
+        if [ "$IPV6_STATE" = "1" ]; then
+            "$0" --disable
+        else
+            "$0" --enable
+        fi
+    fi
+
+    if [ -f "$MODDIR/state.txt" ]; then
+        NET_STATE=$(cat "$MODDIR/state.txt" | tr -d '\r' | tr -d '\n')
+        if [ "$NET_STATE" = "1" ]; then
+            "$0" --state
+        else
+            "$0" --unstate
+        fi
+    fi
+
+    if [ -f "$MODDIR/saver.txt" ]; then
+        SAVER_STATE=$(cat "$MODDIR/saver.txt" | tr -d '\r' | tr -d '\n')
+        if [ "$SAVER_STATE" = "1" ]; then
+            "$0" --saver
+        else
+            "$0" --unsaver
+        fi
+    fi
+
+    if [ -f "$MODDIR/tcp.txt" ]; then
+        TCP_ALGO=$(cat "$MODDIR/tcp.txt" | tr -d '\r' | tr -d '\n')
+        if [ -n "$TCP_ALGO" ]; then
+            echo "$TCP_ALGO" > /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null
+        fi
+    fi
+;;
+
+esac
+exit 0
