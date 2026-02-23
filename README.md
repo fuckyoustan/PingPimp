@@ -52,7 +52,11 @@ PingPimp is packed with real, measurable network manipulation tools accessible v
 </p>
 <p align="center">
   <img src="screenshot/3.png" alt="Isolate Screen" width="45%">
-  <img src="screenshot/5.png" alt="Boost Screen" width="45%">
+  <img src="screenshot/7.png" alt="Boost Screen" width="45%">
+</p>
+<p align="center">
+  <img src="screenshot/5.png" alt="Isolate Screen" width="45%">
+  <img src="screenshot/6.png" alt="Boost Screen" width="45%">
 </p>
 
 ## ⚙️ Installation
@@ -79,8 +83,11 @@ Got a question, bug report, or just want to hang out with fellow flashaholics? J
 ## ⚠️ Disclaimer & Credits
 PingPimp messes with core Linux networking tables. While it is designed to be completely safe and reversible (just uncheck a toggle or uninstall the module), I am not responsible for thermonuclear wars, missed alarms, or you getting banned from your favorite game (though you won't, because we don't touch game files).
 
-* Massive thanks to the **KernelSU** team for the WebUI framework.
-* Crafted with ❤️ and too much caffeine by [@fuckyoustan](https://github.com/fuckyoustan).
+<div align="center">
+    
+Crafted with ❤️ and too much caffeine by [@fuckyoustan](https://github.com/fuckyoustan).
+
+</div>
 
 ---
 <div align="center">
