@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en" id="html-root">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>PingPimp</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "kernelsu": "https://esm.run/kernelsu"
+      }
+    }
+  </script>  
+  <link rel="stylesheet" href="assets/pingpimp.css">
+</head>
+<body>
+  <header>
+    <div class="header-title">
+      <span class="material-symbols-outlined">Stacked_Line_Chart</span>
+      PingPimp
+    </div>
+    <button class="icon-button" id="btn-language" aria-label="Change Language">
+      <span class="material-symbols-outlined">Translate</span>
+    </button>
+  </header>
+  
+  <div class="main">
+    <div id="tab-home" class="tab-content active">
+    
+      <div class="banner">
+        <img src="assets/a.gif" alt="Banner" />
+        <div class="banner-message" id="banner-message">Loading...</div>
+      </div>
+      
+      <div class="device-info" role="group" aria-label="Device information">
+        <div class="device-info-item">
+          <div class="label">
+            <span class="material-symbols-outlined">stars</span>
+            <span data-i18n="devInfoVer">PingPimp Version</span>
+          </div>
+          <div class="value" id="PingPimpVer">Detecting...</div>
+        </div>
+        <div class="device-info-item">
+          <div class="label">
+            <span class="material-symbols-outlined">smartphone</span>
+            <span data-i18n="devInfoModel">Device Model</span>
+          </div>
+          <div class="value" id="device-model">-</div>
+        </div>
+        <div class="device-info-item">
+          <div class="label">
+            <span class="material-symbols-outlined">android</span>
+            <span data-i18n="devInfoAndroid">Android Version</span>
+          </div>
+          <div class="value" id="device-android">-</div>
+        </div>
+        <div class="device-info-item">
+          <div class="label">
+            <span class="material-symbols-outlined">memory</span>
+            <span data-i18n="devInfoKernel">Kernel</span>
+          </div>
+          <div class="value" id="device-kernel">-</div>
+        </div>
+        <div class="device-info-item">
+          <div class="label">
+            <span class="material-symbols-outlined">laptop_mac</span>
+            <span data-i18n="devInfoChipset">Chipset</span>
+          </div>
+          <div class="value" id="device-chipset">-</div>
+        </div>
+        <div class="device-info-item">
+          <div class="label">
+            <span class="material-symbols-outlined">wifi_tethering</span>
+            <span data-i18n="devInfoPing">Live Ping</span>
+          </div>
+          <div class="value" id="live-ping" style="color: var(--app-primary);">Measuring...</div>
+        </div>
+      </div>
+      
+      <div class="dev-card">
+        <div class="dev-profile">
+          <img src="assets/profil.png" alt="Developer Avatar" class="dev-avatar" />
+          <div class="dev-info">
+            <div class="dev-username">@fuckyoustan</div>
+            <div class="dev-desc" data-i18n="devDesc">The Script Kiddie</div>
+          </div>
+        </div>
+        <div class="dev-links">
+          <a href="#" class="pill-btn" id="btn-github">
+            <span class="material-symbols-outlined">code</span> 
+            <span data-i18n="btnGithub">GitHub</span>
+          </a>
+          <a href="#" class="pill-btn" id="btn-telegram">
+            <span class="material-symbols-outlined">send</span> 
+            <span data-i18n="btnTelegram">Telegram</span>
+          </a>
+        </div>
+      </div>
+      
+      <div class="home-footer" style="text-align: center; font-size: 12px; color: var(--app-on-surface); opacity: 0.5; margin-top: 16px; padding-bottom: 8px;" data-i18n="footerText">
+        created by @fuckyoustan with ❤️
+      </div>
+    </div>
+
+    <div id="tab-config" class="tab-content">
+      <div class="custom-card">
+        <div class="custom-card-header">
+          <div class="custom-card-icon">
+            <span class="material-symbols-outlined">Network_Node</span>
+          </div>
+          <div class="custom-card-title" data-i18n="tabConfigTitle1">Network Tweak</div>
+        </div>
+        <div class="custom-card-desc" data-i18n="tabConfigDesc1">
+          Set the preset tweak according to your needs and select the TCP algorithm you want.
+        </div>
+        <div class="custom-option-vertical">
+          <span class="custom-label" data-i18n="optPreset">Preset Tweak</span>
+          <select id="select-preset" class="pingpimp-select"></select>
+        </div>
+        <div class="custom-option-vertical" style="padding-bottom:0; border-bottom:none;">
+          <span class="custom-label" data-i18n="optTcp">TCP Algorithm</span>
+          <select id="select-tcp" class="pingpimp-select"></select>
+        </div>
+      </div>
+      
+      <div class="custom-card">
+        <div class="custom-card-header">
+          <div class="custom-card-icon">
+            <span class="material-symbols-outlined">dns</span>
+          </div>
+          <div class="custom-card-title" data-i18n="tabConfigTitle2">Private DNS</div>
+        </div>
+        <div class="custom-card-desc" data-i18n="tabConfigDesc2">
+          Secure your DNS queries with encrypted DNS providers. Choose a trusted resolver below.
+        </div>
+        <div class="custom-option-vertical" style="padding-bottom:0; border-bottom:none;">
+          <span class="custom-label" data-i18n="optDns">DNS Option</span>
+          <select id="select-dns" class="pingpimp-select"></select>
+          
+          <div id="custom-dns-container" class="custom-input-container" style="display: none;">
+            <div class="custom-input-label" data-i18n="customDnsLabel">Enter Custom DNS Provider</div>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="custom-dns-input" class="app-search-input" data-i18n-placeholder="customDnsPlaceholder" placeholder="e.g. dns.adguard-dns.com" style="margin-bottom: 0; padding: 12px 16px; height: auto; flex: 1; background-color: var(--app-bg);">
+              <button id="btn-save-custom-dns" class="pill-btn solid-btn" style="flex: 0 0 auto; margin: 0; padding: 0 20px;" data-i18n="btnSet">Set</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="custom-card">
+        <div class="custom-card-header">
+          <div class="custom-card-icon">
+            <span class="material-symbols-outlined">wifi</span>
+          </div>
+          <div class="custom-card-title" data-i18n="tabConfigTitle3">Optimize Internet</div>
+        </div>
+        <div class="custom-card-desc" data-i18n="tabConfigDesc3">
+          Increase network speed by disabling netstats and optimizing wifi connectivity.
+        </div>
+        <div class="custom-option" style="padding-bottom:0; border-bottom:none;">
+          <span class="custom-label" data-i18n="optNetState">Disable Network State</span>
+          <label class="custom-switch">
+            <input type="checkbox" id="switch-netstate">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+      </div>
+      
+      <div class="custom-card">
+        <div class="custom-card-header">
+          <div class="custom-card-icon">
+            <span class="material-symbols-outlined">vpn_lock</span>
+          </div>
+          <div class="custom-card-title" data-i18n="tabConfigTitle4">Disable IPv6</div>
+        </div>
+        <div class="custom-card-desc" data-i18n="tabConfigDesc4">
+          Force IPv4 routing to prevent IPv6 DNS leaks, routing issues, and high latency in games.
+        </div>
+        <div class="custom-option" style="padding-bottom:0; border-bottom:none;">
+          <span class="custom-label" data-i18n="optIpv6">Disable IPv6 Connection</span>
+          <label class="custom-switch">
+            <input type="checkbox" id="switch-ipv6">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+      </div>
+      
+      <div class="custom-card">
+        <div class="custom-card-header">
+          <div class="custom-card-icon">
+            <span class="material-symbols-outlined">data_saver_on</span>
+          </div>
+          <div class="custom-card-title" data-i18n="tabConfigTitle5">Ultra Data Saver</div>
+        </div>
+        <div class="custom-card-desc" data-i18n="tabConfigDesc5">
+          Restricts background data and limit internet speed to only 1mb/s.
+        </div>
+        <div class="custom-option" style="padding-bottom:0; border-bottom:none;">
+          <span class="custom-label" data-i18n="optDataSaver">Enable Data Saver</span>
+          <label class="custom-switch">
+            <input type="checkbox" id="switch-saver">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+      </div>      
+    </div>
+
+    <div id="tab-isolate" class="tab-content">
+      <div class="tab-header">
+        <div class="tab-header-icon">
+          <span class="material-symbols-outlined">Shield</span>
+        </div>
+        <div class="tab-header-text">
+          <h2 data-i18n="tabIsolateTitle">Isolate Apps</h2>
+          <p data-i18n="tabIsolateDesc">Block internet access for specific apps to prevent background data usage and interruptions.</p>
+        </div>
+      </div>
+      
+      <input type="text" id="isolate-search" data-i18n-placeholder="searchIsolate" placeholder="Search apps to isolate..." class="app-search-input" />
+      
+      <div class="app-type-toggle">
+        <button class="pill-btn active" id="btn-user-apps-isolate" data-i18n="btnUserApps">User Apps</button>
+        <button class="pill-btn" id="btn-system-apps-isolate" data-i18n="btnSystemApps">System Apps</button>
+      </div>
+      
+      <div id="isolate-list-container" style="margin-bottom: 16px;"></div>
+    </div>
+
+    <div id="tab-prioritize" class="tab-content">
+      <div class="tab-header">
+        <div class="tab-header-icon">
+          <span class="material-symbols-outlined">rocket_launch</span>
+        </div>
+        <div class="tab-header-text">
+          <h2 data-i18n="tabBoostTitle">Boost Apps</h2>
+          <p data-i18n="tabBoostDesc">Prioritize network traffic for specific games or apps to reduce latency and ping drops.</p>
+        </div>
+      </div>
+      
+      <input type="text" id="prioritize-search" data-i18n-placeholder="searchBoost" placeholder="Search apps to boost..." class="app-search-input" />
+      
+      <div class="app-type-toggle">
+        <button class="pill-btn active" id="btn-user-apps-prioritize" data-i18n="btnUserApps">User Apps</button>
+        <button class="pill-btn" id="btn-system-apps-prioritize" data-i18n="btnSystemApps">System Apps</button>
+      </div>
+      
+      <div id="prioritize-list-container" style="margin-bottom: 16px;"></div>
+    </div>
+
+  </div>
+  
+  <nav class="bottom-navigation" id="bottomNav">
+    <button class="nav-button active" data-target="home">
+        <div class="nav-icon-container">
+            <span class="material-symbols-outlined nav-icon">home</span>
+        </div>
+        <span class="nav-label" data-i18n="navHome">Home</span>
+    </button>
+    <button class="nav-button" data-target="config">
+        <div class="nav-icon-container">
+            <span class="material-symbols-outlined nav-icon">settings</span>
+        </div>
+        <span class="nav-label" data-i18n="navConfig">Config</span>
+    </button>
+    <button class="nav-button" data-target="isolate">
+        <div class="nav-icon-container">
+            <span class="material-symbols-outlined nav-icon">shield</span>
+        </div>
+        <span class="nav-label" data-i18n="navIsolate">Isolate</span>
+    </button>
+    <button class="nav-button" data-target="prioritize">
+        <div class="nav-icon-container">
+            <span class="material-symbols-outlined nav-icon">rocket_launch</span>
+        </div>
+        <span class="nav-label" data-i18n="navBoost">Boost</span>
+    </button>
+  </nav>
+
+  <div class="dialog-scrim" id="languageDialog">
+    <div class="dialog-container">
+      <div class="dialog-header">
+        <h3 class="dialog-title" data-i18n="langTitle">Select Language</h3>
+        <button class="icon-button" id="closeLangDialog">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="language-list">
+        <div class="language-option" data-lang="en">
+          <span>English</span> <span class="material-symbols-outlined check-icon">check_circle</span>
+        </div>
+        <div class="language-option" data-lang="id">
+          <span>Bahasa Indonesia</span> <span class="material-symbols-outlined check-icon">check_circle</span>
+        </div>
+        <div class="language-option" data-lang="ja">
+          <span>日本語</span> <span class="material-symbols-outlined check-icon">check_circle</span>
+        </div>
+        <div class="language-option" data-lang="ar">
+          <span>العربية</span> <span class="material-symbols-outlined check-icon">check_circle</span>
+        </div>
+        <div class="language-option" data-lang="ru">
+          <span>Русский</span> <span class="material-symbols-outlined check-icon">check_circle</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading-overlay">Loading...</div>
+  <script type="module" src="assets/pingpimp.js"></script>
+</body>
+</html>
