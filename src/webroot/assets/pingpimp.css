@@ -438,11 +438,10 @@ input:checked + .switch-slider:before {
   margin-bottom: 20px;
   padding: 8px 4px;
 }
-
 .tab-header-icon {
   width: 42px;
   height: 42px;
-  border-radius: 14px; 
+  border-radius: 14px;
   background-color: var(--app-primary-container);
   color: var(--app-on-primary-container);
   display: flex;
@@ -450,10 +449,7 @@ input:checked + .switch-slider:before {
   justify-content: center;
   flex-shrink: 0;
 }
-.tab-header-icon .material-symbols-outlined { 
-  font-size: 24px; 
-  flex-shrink: 0; 
-}
+.tab-header-icon .material-symbols-outlined { font-size: 24px; flex-shrink: 0; }
 
 .tab-header-text h2 {
   font-size: 20px;
@@ -549,12 +545,37 @@ input:checked + .switch-slider:before {
 .language-option.selected .check-icon { display: block; color: var(--app-primary); }
 .language-option:active { transform: scale(0.97); }
 
-/* Support RTL untuk Bahasa Arab */
-html[dir="rtl"] header { flex-direction: row-reverse; }
+/* === Support RTL === */
 html[dir="rtl"] .device-info-item .value { text-align: left; }
-html[dir="rtl"] .bottom-navigation { flex-direction: row-reverse; }
-html[dir="rtl"] .tab-header { flex-direction: row-reverse; text-align: right;}
-html[dir="rtl"] .custom-card-header { flex-direction: row-reverse; text-align: right;}
-html[dir="rtl"] .custom-card-desc { text-align: right;}
-html[dir="rtl"] .pingpimp-select { background-position: left 16px center; text-align: right;}
-html[dir="rtl"] .isolate-content-wrapper { flex-direction: row-reverse; text-align: right;}
+html[dir="rtl"] .custom-card-desc { text-align: right; }
+html[dir="rtl"] .isolate-text-group { text-align: right; }
+html[dir="rtl"] .tab-header-text { text-align: right; }
+html[dir="rtl"] .custom-input-label { text-align: right; }
+html[dir="rtl"] .pingpimp-select { background-position: left 16px center; text-align: right; }
+
+html[dir="rtl"] .device-info-item .label .material-symbols-outlined { 
+  margin-right: 0; 
+  margin-left: 12px; 
+}
+
+html[dir="rtl"] .switch-slider:before {
+  left: auto; 
+  right: 14px; 
+  transform: translate(50%, -50%);
+}
+html[dir="rtl"] input:checked + .switch-slider:before {
+  left: auto; 
+  right: 34px;
+}
+
+html[dir="rtl"] .nav-label {
+  transform: translateX(8px);
+}
+html[dir="rtl"] .nav-button.active .nav-label {
+  transform: translateX(0);
+  margin-left: 0; 
+  margin-right: 4px;
+}
+html[dir="rtl"] .nav-button.active .nav-icon-container {
+  transform: translateX(2px);
+  }
