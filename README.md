@@ -32,8 +32,6 @@ PingPimp is packed with real, measurable network manipulation tools accessible v
     Secure your queries and bypass restrictions. Choose from our massive, built-in list of top-tier encrypted DNS providers (Cloudflare, AdGuard, Quad9, etc.), or easily set up your own Custom DNS.
 * 🚀 **IPv6 Nuke & Netstat Optimizer**
     Force IPv4 routing to prevent IPv6 DNS leaks and routing overheads that cause latency spikes in-game.
-* 🌍 **Multi-Language Support**
-    Speaks your language! Fully translated into English, Indonesian, Japanese, Arabic, and Russian with fun, humanized localization.
 
 ## 🥊 PingPimp vs The Rest
 
@@ -82,12 +80,6 @@ Got a question, bug report, or just want to hang out with fellow flashaholics? J
 
 ## ⚠️ Disclaimer & Credits
 PingPimp messes with core Linux networking tables. While it is designed to be completely safe and reversible (just uncheck a toggle or uninstall the module), I am not responsible for thermonuclear wars, missed alarms, or you getting banned from your favorite game (though you won't, because we don't touch game files).
-
-<div align="center">
-    
-Crafted with ❤️ and too much caffeine by [@fuckyoustan](https://github.com/fuckyoustan).
-
-</div>
 
 ---
 <div align="center">
