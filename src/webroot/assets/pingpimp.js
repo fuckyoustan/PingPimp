@@ -513,12 +513,8 @@ let currentPrioritizeView = 'user';
 // === APP DETECTION ===
 async function fetchUserPackagesInfo() {
   try {
-    const allPkgsList = await listPackages(); 
-    let fullInfo = [];
-    
-    if (allPkgsList && allPkgsList.length > 0) {
-        fullInfo = await getPackagesInfo(allPkgsList);
-    }
+    cachedUserApps = [];
+    cachedSystemApps = [];
 
     const t = await exec("pm list packages -3");
     let thirdPartyPkgs = new Set();
@@ -529,20 +525,47 @@ async function fetchUserPackagesInfo() {
         });
     }
 
-    cachedUserApps = [];
-    cachedSystemApps = [];
+    const allPkgsOut = await exec("pm list packages -U");
+    let rawPackages = [];
 
-    fullInfo.forEach(pkg => {
-        const formattedPkg = {
-            packageName: pkg.packageName,
-            appLabel: pkg.appLabel || pkg.label || pkg.appName || pkg.packageName,
-            uid: pkg.uid
-        };
-        
+    if (allPkgsOut) {
+        allPkgsOut.split("\n").forEach(line => {
+            const match = line.match(/^package:(.+)\s+uid:(\d+)$/);
+            if (match) {
+                rawPackages.push({
+                    packageName: match[1],
+                    uid: match[2],
+                    appLabel: match[1]
+                });
+            }
+        });
+    }
+
+    await Promise.all(rawPackages.map(async (pkgObj) => {
+        try {
+            const query = JSON.stringify([pkgObj.packageName]);
+            let info = await getPackagesInfo(query);
+
+            if (typeof info === 'string') {
+                info = JSON.parse(info);
+            }
+
+            if (Array.isArray(info) && info.length > 0) {
+                const appData = info[0];
+                const label = appData.appLabel || appData.label || appData.appName;
+                if (label) {
+                    pkgObj.appLabel = label;
+                }
+            }
+        } catch (err) {
+        }
+    }));
+
+    rawPackages.forEach(pkg => {
         if (thirdPartyPkgs.has(pkg.packageName)) {
-            cachedUserApps.push(formattedPkg);
+            cachedUserApps.push(pkg);
         } else {
-            cachedSystemApps.push(formattedPkg);
+            cachedSystemApps.push(pkg);
         }
     });
 
@@ -615,11 +638,24 @@ function renderAppList(type) {
     const img = document.createElement('img');
     img.className = 'isolate-app-icon';
     img.src = `ksu://icon/${pkg.packageName}`; 
+    
     img.onerror = () => {
+        if (typeof window.ksu !== 'undefined' && typeof window.ksu.getPackagesIcons === 'function') {
+            try {
+                const iconQuery = JSON.stringify([pkg.packageName]);
+                const iconResultStr = window.ksu.getPackagesIcons(iconQuery, 100);
+                const iconData = JSON.parse(iconResultStr);
+                if (iconData && iconData.length > 0 && iconData[0].icon) {
+                    img.src = iconData[0].icon;
+                    img.onerror = null; 
+                    return;
+                }
+            } catch (e) {}
+        }
+
         img.style.display = 'none';
         const fallback = document.createElement('div');
         fallback.className = 'isolate-app-icon-placeholder';
-        // Menggunakan font offline untuk icon aplikasi cadangan
         fallback.innerHTML = '<span class="material-symbols-outlined">android</span>';
         wrapper.prepend(fallback);
     };
@@ -679,7 +715,9 @@ function renderAppList(type) {
                 isolatedApps.delete(pkg.packageName);
                 toast(`Restored: ${pkg.appLabel}`);
             }
-            localStorage.setItem('pingpimp_isolated_apps', Array.from(isolatedApps).join(','));
+            const isoStr = Array.from(isolatedApps).join(',');
+            localStorage.setItem('pingpimp_isolated_apps', isoStr);
+            await exec(`echo "${isoStr}" > /data/adb/modules/PingPimp/isolate_apps.txt`);
         } 
         else if (type === 'prioritize') {
             if (isChecked) {
@@ -708,7 +746,9 @@ function renderAppList(type) {
                 prioritizedApps.delete(pkg.packageName);
                 toast(`Normal: ${pkg.appLabel}`);
             }
-            localStorage.setItem('pingpimp_prioritized_apps', Array.from(prioritizedApps).join(','));
+            const prioStr = Array.from(prioritizedApps).join(',');
+            localStorage.setItem('pingpimp_prioritized_apps', prioStr);
+            await exec(`echo "${prioStr}" > /data/adb/modules/PingPimp/boost_apps.txt`);
         }
         renderAppList(type);
     });
