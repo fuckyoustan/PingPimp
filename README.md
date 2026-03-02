@@ -1,13 +1,11 @@
-![banner](https://raw.githubusercontent.com/fuckyoustan/PingPimp/refs/heads/main/a.gif)
-
 <div align="center">
 
-# ⚡ PingPimp
+# PingPimp
 **The Ultimate Android Network Alchemist for Gamers & Power Users.**
 
 <a href="https://github.com/fuckyoustan/PingPimp/blob/main/LICENSE"><img src="https://img.shields.io/badge/Apache-white?style=for-the-badge&logo=andela&logoColor=white&label=License&labelColor=222" alt="License"></a>
 
-*Stop blaming the lag. It's time to take absolute control of your connection.*
+*Stop blaming lag. It's time to take absolute control of your connection.*
 
 ---
 
@@ -32,6 +30,8 @@ PingPimp is packed with real, measurable network manipulation tools accessible v
     Secure your queries and bypass restrictions. Choose from our massive, built-in list of top-tier encrypted DNS providers (Cloudflare, AdGuard, Quad9, etc.), or easily set up your own Custom DNS.
 * 🚀 **IPv6 Nuke & Netstat Optimizer**
     Force IPv4 routing to prevent IPv6 DNS leaks and routing overheads that cause latency spikes in-game.
+* ⚡ **Extreme QoS Application Boost**
+    Prioritizes selected apps using a smart DSCP/MARK packet tagging system. A dynamic background daemon applies traffic control (tc) to create a zero-delay VIP lane, instantly bypassing background network hogs.
 
 ## 🥊 PingPimp vs The Rest
 
