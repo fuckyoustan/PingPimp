@@ -723,14 +723,24 @@ function renderAppList(type) {
             if (isChecked) {
                 if (uid) {
                     try {
-                        await exec(`iptables -t mangle -I OUTPUT -m owner --uid-owner ${uid} -j DSCP --set-dscp 46`);
-                        await exec(`ip6tables -t mangle -I OUTPUT -m owner --uid-owner ${uid} -j DSCP --set-dscp 46`);
-                    } catch(e) { 
+                        let dscpSupported = true;
                         try {
-                            await exec(`iptables -t mangle -I OUTPUT -m owner --uid-owner ${uid} -j TOS --set-tos 0x10`);
-                            await exec(`ip6tables -t mangle -I OUTPUT -m owner --uid-owner ${uid} -j TOS --set-tos 0x10`);
-                        } catch(fallbackErr){}
-                    }
+                            await exec(`iptables -t mangle -A OUTPUT -m owner --uid-owner 99999 -j DSCP --set-dscp 46 2>/dev/null`);
+                            await exec(`iptables -t mangle -D OUTPUT -m owner --uid-owner 99999 -j DSCP --set-dscp 46 2>/dev/null`);
+                        } catch(e) {
+                            dscpSupported = false;
+                        }
+
+                        if (dscpSupported) {
+                            await exec(`iptables -t mangle -I OUTPUT -m owner --uid-owner ${uid} -j DSCP --set-dscp 46`);
+                            await exec(`ip6tables -t mangle -I OUTPUT -m owner --uid-owner ${uid} -j DSCP --set-dscp 46`);
+                        } else {
+                            await exec(`iptables -t mangle -I OUTPUT -m owner --uid-owner ${uid} -j MARK --set-mark 0x40000000/0x40000000`);
+                            await exec(`ip6tables -t mangle -I OUTPUT -m owner --uid-owner ${uid} -j MARK --set-mark 0x40000000/0x40000000`);
+                        }
+                        
+                        await exec(`PingPimp --init-tc`);
+                    } catch(e) {}
                 }
                 prioritizedApps.add(pkg.packageName);
                 toast(`Boosted: ${pkg.appLabel}`);
@@ -739,13 +749,14 @@ function renderAppList(type) {
                     try {
                         await exec(`iptables -t mangle -D OUTPUT -m owner --uid-owner ${uid} -j DSCP --set-dscp 46 2>/dev/null || true`);
                         await exec(`ip6tables -t mangle -D OUTPUT -m owner --uid-owner ${uid} -j DSCP --set-dscp 46 2>/dev/null || true`);
-                        await exec(`iptables -t mangle -D OUTPUT -m owner --uid-owner ${uid} -j TOS --set-tos 0x10 2>/dev/null || true`);
-                        await exec(`ip6tables -t mangle -D OUTPUT -m owner --uid-owner ${uid} -j TOS --set-tos 0x10 2>/dev/null || true`);
+                        await exec(`iptables -t mangle -D OUTPUT -m owner --uid-owner ${uid} -j MARK --set-mark 0x40000000/0x40000000 2>/dev/null || true`);
+                        await exec(`ip6tables -t mangle -D OUTPUT -m owner --uid-owner ${uid} -j MARK --set-mark 0x40000000/0x40000000 2>/dev/null || true`);
                     } catch(e) {}
                 }
                 prioritizedApps.delete(pkg.packageName);
                 toast(`Normal: ${pkg.appLabel}`);
             }
+            
             const prioStr = Array.from(prioritizedApps).join(',');
             localStorage.setItem('pingpimp_prioritized_apps', prioStr);
             await exec(`echo "${prioStr}" > /data/adb/modules/PingPimp/boost_apps.txt`);
