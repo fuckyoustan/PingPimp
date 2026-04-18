@@ -575,12 +575,21 @@ async function fetchUserPackagesInfo() {
   }
 }
 
-function loadAppConfigs() {
-    const savedIso = localStorage.getItem('pingpimp_isolated_apps');
-    if (savedIso) savedIso.split(',').filter(x=>x).forEach(pkg => isolatedApps.add(pkg));
+// === BACA LANGSUNG DARI FILE TXT, BUKAN LOCALSTORAGE ===
+async function loadAppConfigs() {
+    try {
+        const savedIso = await exec("cat /data/adb/modules/PingPimp/isolate_apps.txt 2>/dev/null");
+        if (savedIso) {
+            savedIso.replace(/\n|\r/g, "").split(',').filter(x => x.trim()).forEach(pkg => isolatedApps.add(pkg.trim()));
+        }
+    } catch (e) {}
 
-    const savedPrio = localStorage.getItem('pingpimp_prioritized_apps');
-    if (savedPrio) savedPrio.split(',').filter(x=>x).forEach(pkg => prioritizedApps.add(pkg));
+    try {
+        const savedPrio = await exec("cat /data/adb/modules/PingPimp/boost_apps.txt 2>/dev/null");
+        if (savedPrio) {
+            savedPrio.replace(/\n|\r/g, "").split(',').filter(x => x.trim()).forEach(pkg => prioritizedApps.add(pkg.trim()));
+        }
+    } catch (e) {}
 }
 
 function renderAppList(type) {
@@ -715,8 +724,9 @@ function renderAppList(type) {
                 isolatedApps.delete(pkg.packageName);
                 toast(`Restored: ${pkg.appLabel}`);
             }
+            
+            // Tulis ulang ke file langsung
             const isoStr = Array.from(isolatedApps).join(',');
-            localStorage.setItem('pingpimp_isolated_apps', isoStr);
             await exec(`echo "${isoStr}" > /data/adb/modules/PingPimp/isolate_apps.txt`);
         } 
         else if (type === 'prioritize') {
@@ -757,9 +767,10 @@ function renderAppList(type) {
                 toast(`Normal: ${pkg.appLabel}`);
             }
             
+            // Tulis ulang ke file langsung & update HW Tweak
             const prioStr = Array.from(prioritizedApps).join(',');
-            localStorage.setItem('pingpimp_prioritized_apps', prioStr);
             await exec(`echo "${prioStr}" > /data/adb/modules/PingPimp/boost_apps.txt`);
+            await exec(`PingPimp --hw-tweak`);
         }
         renderAppList(type);
     });
@@ -788,6 +799,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const savedLang = localStorage.getItem('pingpimp_lang') || 'en';
   await loadLanguage(savedLang);
 
+  // loadAppConfigs sekarang async dan dipanggil berbarengan untuk optimasi loading
   await Promise.all([
     updateDeviceInfo(),
     loadPresetTweakOptions(),
@@ -796,7 +808,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initSwitch("switch-netstate", "state.txt", "state", "unstate", "Network State"),
     initSwitch("switch-saver", "saver.txt", "saver", "unsaver", "Data Saver"),
     initSwitch("switch-ipv6", "ipv6_state.txt", "disable", "enable", "Disable IPv6"), 
-    loadAppConfigs(),
+    loadAppConfigs(), 
     fetchUserPackagesInfo()
   ]);
   
