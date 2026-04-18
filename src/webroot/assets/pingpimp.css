@@ -354,7 +354,6 @@ input:checked + .switch-slider:before {
   transition: all .3s cubic-bezier(.2,0,0,1);
 }
 
-/* Biar icon navigasi berubah solid/fill saat di klik */
 .nav-button.active .nav-icon {
   font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
 }
@@ -505,8 +504,6 @@ input:checked + .switch-slider:before {
 .icon-button .material-symbols-outlined {
   font-size: 24px; flex-shrink: 0;
 }
-
-/* Dialog Scrim & Container */
 .dialog-scrim {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   background-color: rgba(0, 0, 0, 0.4);
@@ -515,7 +512,6 @@ input:checked + .switch-slider:before {
   opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
 }
 .dialog-scrim.active { opacity: 1; pointer-events: auto; }
-
 .dialog-container {
   background-color: var(--app-surface-high);
   border-radius: 28px; width: 85%; max-width: 360px;
@@ -524,11 +520,8 @@ input:checked + .switch-slider:before {
   border: 1px solid var(--app-outline-variant);
 }
 .dialog-scrim.active .dialog-container { transform: translateY(0) scale(1); }
-
 .dialog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .dialog-title { font-size: 20px; font-weight: 700; color: var(--app-on-surface); margin: 0; }
-
-/* Language List */
 .language-list { display: flex; flex-direction: column; gap: 8px; }
 .language-option {
   padding: 16px 20px; border-radius: 16px; background-color: var(--app-surface);
@@ -545,19 +538,16 @@ input:checked + .switch-slider:before {
 .language-option.selected .check-icon { display: block; color: var(--app-primary); }
 .language-option:active { transform: scale(0.97); }
 
-/* === Support RTL === */
 html[dir="rtl"] .device-info-item .value { text-align: left; }
 html[dir="rtl"] .custom-card-desc { text-align: right; }
 html[dir="rtl"] .isolate-text-group { text-align: right; }
 html[dir="rtl"] .tab-header-text { text-align: right; }
 html[dir="rtl"] .custom-input-label { text-align: right; }
 html[dir="rtl"] .pingpimp-select { background-position: left 16px center; text-align: right; }
-
 html[dir="rtl"] .device-info-item .label .material-symbols-outlined { 
   margin-right: 0; 
   margin-left: 12px; 
 }
-
 html[dir="rtl"] .switch-slider:before {
   left: auto; 
   right: 14px; 
