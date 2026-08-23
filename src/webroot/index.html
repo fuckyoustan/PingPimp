@@ -10,28 +10,25 @@
         "kernelsu": "https://esm.run/kernelsu"
       }
     }
-  </script>  
+  </script>
   <link rel="stylesheet" href="assets/pingpimp.css">
 </head>
 <body>
   <header>
-    <div class="header-title">
+    <div class="header-title" id="main-header-title">
       <span class="material-symbols-outlined">Stacked_Line_Chart</span>
       PingPimp
     </div>
-    <button class="icon-button" id="btn-language" aria-label="Change Language">
-      <span class="material-symbols-outlined">Translate</span>
-    </button>
   </header>
-  
+
   <div class="main">
     <div id="tab-home" class="tab-content active">
-    
+
       <div class="banner">
         <img src="assets/a.gif" alt="Banner" />
         <div class="banner-message" id="banner-message">Loading...</div>
       </div>
-      
+
       <div class="device-info" role="group" aria-label="Device information">
         <div class="device-info-item">
           <div class="label">
@@ -68,15 +65,46 @@
           </div>
           <div class="value" id="device-chipset">-</div>
         </div>
-        <div class="device-info-item">
-          <div class="label">
-            <span class="material-symbols-outlined">wifi_tethering</span>
-            <span data-i18n="devInfoPing">Live Ping</span>
+      </div>
+
+      <div class="monitor-card">
+        <div class="monitor-header">
+          <span class="material-symbols-outlined">query_stats</span>
+          <span data-i18n="monitorTitle">Live Network</span>
+        </div>
+        <div class="monitor-top-section">
+          <div class="monitor-score-container" id="net-score-container">
+            <span class="score-value" id="net-score">--</span>
+            <span class="score-label" id="net-score-label">SCORE</span>
           </div>
-          <div class="value" id="live-ping" style="color: var(--app-primary);">Measuring...</div>
+          <div class="monitor-status-wrapper">
+            <div class="status-badge" id="net-status-badge">
+              <span class="material-symbols-outlined" id="net-status-icon">sync</span>
+              <span id="net-status-text">Evaluating...</span>
+            </div>
+            <div id="net-action-text" class="status-action">-</div>
+          </div>
+        </div>
+        <div class="monitor-stats-grid">
+          <div class="stat-box">
+            <div class="stat-label">Latency</div>
+            <div class="stat-val" id="stat-latency">-- ms</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Jitter</div>
+            <div class="stat-val" id="stat-jitter">-- ms</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Packet Loss</div>
+            <div class="stat-val" id="stat-loss">-- %</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Retransmit</div>
+            <div class="stat-val" id="stat-retrans">-- %</div>
+          </div>
         </div>
       </div>
-      
+
       <div class="dev-card">
         <div class="dev-profile">
           <img src="assets/profil.png" alt="Developer Avatar" class="dev-avatar" />
@@ -87,122 +115,193 @@
         </div>
         <div class="dev-links">
           <a href="#" class="pill-btn" id="btn-github">
-            <span class="material-symbols-outlined">code</span> 
+            <span class="material-symbols-outlined">code</span>
             <span data-i18n="btnGithub">GitHub</span>
           </a>
           <a href="#" class="pill-btn" id="btn-telegram">
-            <span class="material-symbols-outlined">send</span> 
+            <span class="material-symbols-outlined">send</span>
             <span data-i18n="btnTelegram">Telegram</span>
           </a>
         </div>
       </div>
-      
+
       <div class="home-footer" style="text-align: center; font-size: 12px; color: var(--app-on-surface); opacity: 0.5; margin-top: 16px; padding-bottom: 8px;" data-i18n="footerText">
         created by @fuckyoustan with ❤️
       </div>
     </div>
 
     <div id="tab-config" class="tab-content">
-      <div class="custom-card">
-        <div class="custom-card-header">
-          <div class="custom-card-icon">
-            <span class="material-symbols-outlined">Network_Node</span>
+    
+      <div class="az-section-title" data-i18n="tabConfigTitle0">AI Automation</div>
+      <div class="az-card-group">
+        
+        <div class="az-option">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">smart_toy</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optAutoMode">Smart Auto Mode</div>
+            <div class="az-desc" data-i18n="tabConfigDesc0">Automatically detect apps and adjust network preset dynamically.</div>
           </div>
-          <div class="custom-card-title" data-i18n="tabConfigTitle1">Network Tweak</div>
-        </div>
-        <div class="custom-card-desc" data-i18n="tabConfigDesc1">
-          Set the preset tweak according to your needs and select the TCP algorithm you want.
-        </div>
-        <div class="custom-option-vertical">
-          <span class="custom-label" data-i18n="optPreset">Preset Tweak</span>
-          <select id="select-preset" class="pingpimp-select"></select>
-        </div>
-        <div class="custom-option-vertical" style="padding-bottom:0; border-bottom:none;">
-          <span class="custom-label" data-i18n="optTcp">TCP Algorithm</span>
-          <select id="select-tcp" class="pingpimp-select"></select>
+          <label class="az-switch-wrapper">
+            <input type="checkbox" id="switch-auto-mode">
+            <span class="az-switch-slider"></span>
+          </label>
         </div>
       </div>
-      
-      <div class="custom-card">
-        <div class="custom-card-header">
-          <div class="custom-card-icon">
-            <span class="material-symbols-outlined">dns</span>
+
+      <!-- KELOMPOK 1: Performa / Network Tweak -->
+      <div class="az-section-title" data-i18n="tabConfigTitle1">Network Tweak</div>
+      <div class="az-card-group">
+
+        <div class="az-option">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">network_node</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optPreset">Preset Tweak</div>
+            <div class="az-desc" data-i18n="tabConfigDesc1">Set the preset tweak according to your needs.</div>
           </div>
-          <div class="custom-card-title" data-i18n="tabConfigTitle2">Private DNS</div>
+          <select id="select-preset" class="az-select"></select>
         </div>
-        <div class="custom-card-desc" data-i18n="tabConfigDesc2">
-          Secure your DNS queries with encrypted DNS providers. Choose a trusted resolver below.
+
+        <div class="az-option">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">memory</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optTcp">TCP Algorithm</div>
+            <div class="az-desc">Select the TCP congestion control algorithm.</div>
+          </div>
+          <select id="select-tcp" class="az-select"></select>
         </div>
-        <div class="custom-option-vertical" style="padding-bottom:0; border-bottom:none;">
-          <span class="custom-label" data-i18n="optDns">DNS Option</span>
-          <select id="select-dns" class="pingpimp-select"></select>
-          
-          <div id="custom-dns-container" class="custom-input-container" style="display: none;">
-            <div class="custom-input-label" data-i18n="customDnsLabel">Enter Custom DNS Provider</div>
-            <div style="display: flex; gap: 8px;">
-              <input type="text" id="custom-dns-input" class="app-search-input" data-i18n-placeholder="customDnsPlaceholder" placeholder="e.g. dns.adguard-dns.com" style="margin-bottom: 0; padding: 12px 16px; height: auto; flex: 1; background-color: var(--app-bg);">
-              <button id="btn-save-custom-dns" class="pill-btn solid-btn" style="flex: 0 0 auto; margin: 0; padding: 0 20px;" data-i18n="btnSet">Set</button>
-            </div>
+
+        <div class="az-option">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">dns</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optDns">DNS Option</div>
+            <div class="az-desc" data-i18n="tabConfigDesc2">Secure your DNS queries with encrypted DNS providers.</div>
+          </div>
+          <select id="select-dns" class="az-select"></select>
+        </div>
+
+        <!-- Wadah Input DNS Custom -->
+        <div id="custom-dns-container" style="display: none; padding: 0 16px 16px 16px;">
+          <div class="custom-input-label" style="font-size: 12px; margin-bottom: 8px;" data-i18n="customDnsLabel">Enter Custom DNS Provider</div>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="custom-dns-input" class="app-search-input" data-i18n-placeholder="customDnsPlaceholder" placeholder="e.g. dns.adguard-dns.com" style="margin-bottom: 0; padding: 12px 16px; border-radius: 12px; flex: 1; height: 44px;">
+            <button id="btn-save-custom-dns" class="pill-btn solid-btn" style="flex: 0 0 auto; height: 44px; border-radius: 12px; margin: 0; padding: 0 16px;" data-i18n="btnSet">Set</button>
           </div>
         </div>
       </div>
-      
-      <div class="custom-card">
-        <div class="custom-card-header">
-          <div class="custom-card-icon">
-            <span class="material-symbols-outlined">wifi</span>
+
+      <div class="az-section-title" data-i18n="tabConfigTitle6">Advanced Tweaks</div>
+      <div class="az-card-group">
+
+        <div class="az-option">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">network_manage</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optNic">NIC Offloading</div>
+            <div class="az-desc" data-i18n="tabConfigDesc6">Disable GRO/GSO to bypass batching and reduce latency.</div>
           </div>
-          <div class="custom-card-title" data-i18n="tabConfigTitle3">Optimize Internet</div>
+          <label class="az-switch-wrapper">
+            <input type="checkbox" id="switch-nicoffload">
+            <span class="az-switch-slider"></span>
+          </label>
         </div>
-        <div class="custom-card-desc" data-i18n="tabConfigDesc3">
-          Increase network speed by disabling netstats and optimizing wifi connectivity.
+
+        <div class="az-option">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">memory_alt</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optIrq">Hardware IRQ Affinity</div>
+            <div class="az-desc" data-i18n="tabConfigDesc7">Pin network interrupts to performance cores.</div>
+          </div>
+          <label class="az-switch-wrapper">
+            <input type="checkbox" id="switch-irq">
+            <span class="az-switch-slider"></span>
+          </label>
         </div>
-        <div class="custom-option" style="padding-bottom:0; border-bottom:none;">
-          <span class="custom-label" data-i18n="optNetState">Disable Network State</span>
-          <label class="custom-switch">
+
+        <div class="az-option">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">speed</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optLowat">TCP NotSent Lowat</div>
+            <div class="az-desc" data-i18n="tabConfigDesc8">Limit socket queues to prevent bufferbloat.</div>
+          </div>
+          <label class="az-switch-wrapper">
+            <input type="checkbox" id="switch-lowat">
+            <span class="az-switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="az-option">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">bolt</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optKsoft">Ksoftirqd Boost</div>
+            <div class="az-desc" data-i18n="tabConfigDesc9">Grant real-time priority to kernel network threads.</div>
+          </div>
+          <label class="az-switch-wrapper">
+            <input type="checkbox" id="switch-ksoft">
+            <span class="az-switch-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="az-section-title" data-i18n="tabConfigTitle3">Optimize Internet</div>
+      <div class="az-card-group">
+
+        <div class="az-option">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">wifi</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optNetState">Disable Network State</div>
+            <div class="az-desc" data-i18n="tabConfigDesc3">Increase network speed by disabling netstats.</div>
+          </div>
+          <label class="az-switch-wrapper">
             <input type="checkbox" id="switch-netstate">
-            <span class="switch-slider"></span>
+            <span class="az-switch-slider"></span>
           </label>
         </div>
-      </div>
-      
-      <div class="custom-card">
-        <div class="custom-card-header">
-          <div class="custom-card-icon">
-            <span class="material-symbols-outlined">vpn_lock</span>
+
+        <div class="az-option">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">vpn_lock</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optIpv6">Disable IPv6 Connection</div>
+            <div class="az-desc" data-i18n="tabConfigDesc4">Force IPv4 routing to prevent IPv6 DNS leaks.</div>
           </div>
-          <div class="custom-card-title" data-i18n="tabConfigTitle4">Disable IPv6</div>
-        </div>
-        <div class="custom-card-desc" data-i18n="tabConfigDesc4">
-          Force IPv4 routing to prevent IPv6 DNS leaks, routing issues, and high latency in games.
-        </div>
-        <div class="custom-option" style="padding-bottom:0; border-bottom:none;">
-          <span class="custom-label" data-i18n="optIpv6">Disable IPv6 Connection</span>
-          <label class="custom-switch">
+          <label class="az-switch-wrapper">
             <input type="checkbox" id="switch-ipv6">
-            <span class="switch-slider"></span>
+            <span class="az-switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="az-option">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">data_saver_on</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optDataSaver">Enable Data Saver</div>
+            <div class="az-desc" data-i18n="tabConfigDesc5">Restricts background data and limit internet speed.</div>
+          </div>
+          <label class="az-switch-wrapper">
+            <input type="checkbox" id="switch-saver">
+            <span class="az-switch-slider"></span>
           </label>
         </div>
       </div>
-      
-      <div class="custom-card">
-        <div class="custom-card-header">
-          <div class="custom-card-icon">
-            <span class="material-symbols-outlined">data_saver_on</span>
+
+      <div class="az-section-title" data-i18n="tabConfigTitleOther">Other</div>
+      <div class="az-card-group">
+
+        <div class="az-option az-option-clickable" id="opt-language">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">translate</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optLang">Language</div>
+            <div class="az-desc" data-i18n="optLangDesc">Change PingPimp language.</div>
           </div>
-          <div class="custom-card-title" data-i18n="tabConfigTitle5">Ultra Data Saver</div>
+          <span class="material-symbols-outlined option-arrow">chevron_right</span>
         </div>
-        <div class="custom-card-desc" data-i18n="tabConfigDesc5">
-          Restricts background data and limit internet speed to only 1mb/s.
+        
+        <div class="az-option az-option-clickable" id="opt-savelog">
+          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">save</span></div>
+          <div class="az-text-block">
+            <div class="az-title" data-i18n="optSaveLog">Save Log</div>
+            <div class="az-desc" data-i18n="optSaveLogDesc">Export PingPimp operational log to internal storage.</div>
+          </div>
+          <span class="material-symbols-outlined option-arrow">chevron_right</span>
         </div>
-        <div class="custom-option" style="padding-bottom:0; border-bottom:none;">
-          <span class="custom-label" data-i18n="optDataSaver">Enable Data Saver</span>
-          <label class="custom-switch">
-            <input type="checkbox" id="switch-saver">
-            <span class="switch-slider"></span>
-          </label>
-        </div>
-      </div>      
+      </div>
     </div>
 
     <div id="tab-isolate" class="tab-content">
@@ -215,14 +314,14 @@
           <p data-i18n="tabIsolateDesc">Block internet access for specific apps to prevent background data usage and interruptions.</p>
         </div>
       </div>
-      
+
       <input type="text" id="isolate-search" data-i18n-placeholder="searchIsolate" placeholder="Search apps to isolate..." class="app-search-input" />
-      
+
       <div class="app-type-toggle">
         <button class="pill-btn active" id="btn-user-apps-isolate" data-i18n="btnUserApps">User Apps</button>
         <button class="pill-btn" id="btn-system-apps-isolate" data-i18n="btnSystemApps">System Apps</button>
       </div>
-      
+
       <div id="isolate-list-container" style="margin-bottom: 16px;"></div>
     </div>
 
@@ -236,43 +335,43 @@
           <p data-i18n="tabBoostDesc">Prioritize network traffic for specific games or apps to reduce latency and ping drops.</p>
         </div>
       </div>
-      
+
       <input type="text" id="prioritize-search" data-i18n-placeholder="searchBoost" placeholder="Search apps to boost..." class="app-search-input" />
-      
+
       <div class="app-type-toggle">
         <button class="pill-btn active" id="btn-user-apps-prioritize" data-i18n="btnUserApps">User Apps</button>
         <button class="pill-btn" id="btn-system-apps-prioritize" data-i18n="btnSystemApps">System Apps</button>
       </div>
-      
+
       <div id="prioritize-list-container" style="margin-bottom: 16px;"></div>
     </div>
 
   </div>
-  
+
   <nav class="bottom-navigation" id="bottomNav">
     <button class="nav-button active" data-target="home">
-        <div class="nav-icon-container">
-            <span class="material-symbols-outlined nav-icon">home</span>
-        </div>
-        <span class="nav-label" data-i18n="navHome">Home</span>
+      <div class="nav-icon-container">
+        <span class="material-symbols-outlined nav-icon">home</span>
+      </div>
+      <span class="nav-label" data-i18n="navHome">Home</span>
     </button>
     <button class="nav-button" data-target="config">
-        <div class="nav-icon-container">
-            <span class="material-symbols-outlined nav-icon">settings</span>
-        </div>
-        <span class="nav-label" data-i18n="navConfig">Config</span>
+      <div class="nav-icon-container">
+        <span class="material-symbols-outlined nav-icon">settings</span>
+      </div>
+      <span class="nav-label" data-i18n="navConfig">Config</span>
     </button>
     <button class="nav-button" data-target="isolate">
-        <div class="nav-icon-container">
-            <span class="material-symbols-outlined nav-icon">shield</span>
-        </div>
-        <span class="nav-label" data-i18n="navIsolate">Isolate</span>
+      <div class="nav-icon-container">
+        <span class="material-symbols-outlined nav-icon">shield</span>
+      </div>
+      <span class="nav-label" data-i18n="navIsolate">Isolate</span>
     </button>
     <button class="nav-button" data-target="prioritize">
-        <div class="nav-icon-container">
-            <span class="material-symbols-outlined nav-icon">rocket_launch</span>
-        </div>
-        <span class="nav-label" data-i18n="navBoost">Boost</span>
+      <div class="nav-icon-container">
+        <span class="material-symbols-outlined nav-icon">rocket_launch</span>
+      </div>
+      <span class="nav-label" data-i18n="navBoost">Boost</span>
     </button>
   </nav>
 
@@ -307,6 +406,17 @@
     </div>
   </div>
 
+  <div class="info-dialog-scrim" id="infoDialog">
+    <div class="info-dialog-container">
+      <div class="info-dialog-icon" id="infoDialogIcon">
+        <span class="material-symbols-outlined">info</span>
+      </div>
+      <h3 class="info-dialog-title" id="infoDialogTitle">Title</h3>
+      <div class="info-dialog-desc" id="infoDialogDesc">Full description goes here...</div>
+      <button class="info-dialog-btn" id="closeInfoDialog">Got it</button>
+    </div>
+  </div>
+  
   <div id="loading-overlay">Loading...</div>
   <script type="module" src="assets/pingpimp.js"></script>
 </body>
