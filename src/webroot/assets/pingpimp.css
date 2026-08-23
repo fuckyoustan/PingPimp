@@ -111,7 +111,7 @@ header::before {
   backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
 }
 
-.device-info, .dev-card, .custom-card {
+.device-info, .dev-card, .custom-card, .monitor-card {
   background-color: var(--app-surface);
   border-radius: 24px;
   margin-bottom: 16px;
@@ -132,6 +132,118 @@ header::before {
 }
 .device-info-item .value#PingPimpVer { color: var(--app-primary); font-weight: 700; opacity: 1; }
 
+/* === NEW: MONITOR CARD === */
+.monitor-card {
+  padding: 20px;
+}
+.monitor-header {
+  display: flex; align-items: center; font-size: 18px; font-weight: 700;
+  color: var(--app-on-surface); margin-bottom: 16px; gap: 10px;
+}
+.monitor-header .material-symbols-outlined { color: var(--app-primary); }
+
+.monitor-top-section {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.monitor-top-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: var(--app-surface-high);
+  border-radius: 28px; /* Inner card wrapper */
+}
+
+.monitor-score-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  background-color: var(--app-surface-highest);
+  border-radius: 24px; /* Material You Squircle */
+  transition: background-color 0.4s cubic-bezier(0.2, 0, 0, 1);
+  flex-shrink: 0;
+}
+
+.score-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--app-on-surface);
+  line-height: 1.1;
+  transition: color 0.4s ease;
+}
+
+.score-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--app-on-surface);
+  opacity: 0.8;
+  transition: color 0.4s ease;
+}
+
+.monitor-status-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 8px;
+  background-color: var(--app-surface-highest);
+  border-radius: 100px; /* Material Chip/Pill */
+  width: fit-content;
+  transition: background-color 0.4s ease, color 0.4s ease;
+  color: var(--app-on-surface);
+}
+
+.status-badge .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.status-badge span#net-status-text {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.status-action {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--app-on-surface-variant);
+  line-height: 1.4;
+}
+.status-action {
+  font-size: 13px; font-weight: 500; color: var(--app-on-surface-variant);
+}
+
+.monitor-stats-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+.stat-box {
+  background-color: var(--app-surface-high);
+  padding: 12px; border-radius: 16px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.stat-label {
+  font-size: 12px; font-weight: 600; color: var(--app-on-surface-variant);
+}
+.stat-val {
+  font-size: 16px; font-weight: 700; color: var(--app-on-surface);
+}
+
+/* Dev Card & Others */
 .dev-card { padding: 20px; }
 .dev-profile { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
 .dev-avatar {
@@ -267,15 +379,20 @@ header::before {
 }
 
 input:checked + .switch-slider { 
-  background-color: var(--app-primary); 
-  border-color: var(--app-primary);
+  background-color: var(--app-primary-container); 
+  border-color: var(--app-primary-container);
 }
 
 input:checked + .switch-slider:before {
   left: 34px;
   height: 24px; 
   width: 24px;
-  background-color: var(--app-on-primary);
+  background-color: var(--app-on-primary-container);
+  /* Tambahan icon ceklis persis seperti AZenith */
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23000'%3e%3cpath d='M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z'/%3e%3c/svg%3e");
+  background-size: 14px;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .bottom-navigation {
@@ -568,4 +685,344 @@ html[dir="rtl"] .nav-button.active .nav-label {
 }
 html[dir="rtl"] .nav-button.active .nav-icon-container {
   transform: translateX(2px);
+}
+
+.section-pill {
+  display: inline-block;
+  background-color: var(--app-surface-highest); 
+  color: var(--app-on-surface);
+  padding: 8px 18px;
+  border-radius: 100px;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 16px 0 12px 0;
+  letter-spacing: 0.3px;
+}
+
+/* Container utama berujung membulat */
+.settings-card {
+  background-color: var(--app-surface);
+  border-radius: 28px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; 
+  margin-bottom: 8px;
+}
+
+/* Tiap baris opsi */
+.settings-option {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  gap: 16px;
+  border-bottom: 1px solid var(--app-outline-variant); /* Pemisah tipis */
+  min-height: 72px;
+}
+/* Hilangkan garis pemisah pada elemen paling bawah di dalam card */
+.settings-option:last-child {
+  border-bottom: none;
+}
+
+/* Background bulat untuk ikon */
+.option-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.option-icon .material-symbols-outlined {
+  font-size: 24px;
+}
+
+/* Teks dan Deskripsi */
+.option-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: center;
+}
+
+.option-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--app-on-surface);
+  margin-bottom: 2px;
+}
+
+.option-desc {
+  font-size: 13px;
+  color: var(--app-on-surface-variant);
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
+/* Posisi Dropdown/Switch di sebelah kanan */
+.option-control {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Dropdown styling agar lebih muat jika ditaruh di sebelah kanan */
+.pingpimp-select-inline {
+  padding: 8px 32px 8px 16px;
+  border-radius: 100px;
+  background-color: var(--app-surface-high);
+  border: none;
+  color: var(--app-on-surface);
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 600;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='gray'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 20px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  max-width: 140px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pingpimp-select-inline:focus {
+  outline: none;
+  background-color: var(--app-surface-highest);
+  box-shadow: inset 0 0 0 2px var(--app-primary);
+}
+
+/* RTL Support untuk dropdown inline */
+html[dir="rtl"] .pingpimp-select-inline {
+  background-position: left 12px center;
+}
+
+.az-section-title {
+  color: var(--app-primary);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 24px 16px 8px 16px;
+  letter-spacing: 0.5px;
+}
+
+.tab-content .az-section-title:first-child {
+  margin-top: 0;
+}
+
+/* Card Container Utama */
+.az-card-group {
+  background-color: var(--app-surface);
+  border-radius: 28px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Tiap Baris Opsi */
+.az-option {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  gap: 16px;
+  border-bottom: 1px solid var(--overlay-light);
+  min-height: 76px;
+}
+.az-option:last-child {
+  border-bottom: none;
+}
+
+/* Kotak Ikon Membulat */
+.az-icon-box {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background-color: var(--app-surface-high);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--app-on-surface-variant);
+}
+.az-icon-box .material-symbols-outlined {
+  font-size: 22px;
+}
+
+/* Wrapper Teks (Anti-Menumpuk) */
+.az-text-block {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+}
+.az-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--app-on-surface);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.az-desc {
+  font-size: 13px;
+  color: var(--app-on-surface-variant);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  opacity: 0.8;
+}
+
+.az-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: transparent;
+  border: none;
+  color: var(--app-on-surface-variant);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+  padding: 8px 24px 8px 8px;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='gray'%3e%3cpath d='M9 5l7 7-7 7z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: 18px;
+  cursor: pointer;
+  outline: none;
+  max-width: 120px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.az-select option {
+  background-color: var(--app-surface);
+  color: var(--app-on-surface);
+}
+
+.az-switch-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.az-switch-wrapper input {
+  opacity: 0; width: 0; height: 0;
+}
+.az-switch-slider {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: transparent;
+  border: 2px solid var(--app-outline-variant);
+  border-radius: 26px;
+  transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+  cursor: pointer;
+}
+.az-switch-slider:before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--app-on-surface-variant);
+  border-radius: 50%;
+  transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+.az-switch-wrapper input:checked + .az-switch-slider {
+  background-color: var(--app-primary-container);
+  border-color: var(--app-primary-container);
+}
+.az-switch-wrapper input:checked + .az-switch-slider:before {
+  transform: translateX(22px);
+  background-color: var(--app-on-primary-container);
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23000'%3e%3cpath d='M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z'/%3e%3c/svg%3e");
+  background-size: 12px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* RTL Support untuk elemen baru */
+html[dir="rtl"] .az-select {
+  text-align: left;
+  padding: 8px 8px 8px 24px;
+  background-position: left center;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='gray'%3e%3cpath d='M15 19l-7-7 7-7 1.4 1.4L10.8 12l5.6 5.6z'/%3e%3c/svg%3e");
+}
+html[dir="rtl"] .az-switch-slider:before { left: auto; right: 3px; }
+html[dir="rtl"] .az-switch-wrapper input:checked + .az-switch-slider:before {
+  transform: translateX(-22px);
+}
+
+/* Efek visual ketika elemen dikunci (disabled) */
+.az-option.disabled-by-auto {
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.info-dialog-scrim {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  z-index: 3000;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+}
+.info-dialog-scrim.active { opacity: 1; pointer-events: auto; }
+
+.info-dialog-container {
+  background-color: var(--app-surface-high);
+  border-radius: 28px; width: 88%; max-width: 380px;
+  padding: 24px; transform: translateY(20px) scale(0.95); 
+  transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+  border: 1px solid var(--app-outline-variant);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+.info-dialog-scrim.active .info-dialog-container { transform: translateY(0) scale(1); }
+
+.info-dialog-icon {
+  width: 52px; height: 52px; border-radius: 16px;
+  background-color: var(--app-primary-container); color: var(--app-primary);
+  display: flex; align-items: center; justify-content: center; margin-bottom: 16px;
+}
+.info-dialog-icon .material-symbols-outlined { font-size: 28px; }
+
+.info-dialog-title {
+  font-size: 22px; font-weight: 700; color: var(--app-on-surface);
+  margin-bottom: 8px; letter-spacing: -0.5px;
+}
+.info-dialog-desc {
+  font-size: 14px; color: var(--app-on-surface-variant);
+  line-height: 1.6; margin-bottom: 24px;
+}
+
+.info-dialog-btn {
+  width: 100%; padding: 14px; border-radius: 100px;
+  background-color: var(--app-primary); color: var(--app-on-primary);
+  font-size: 15px; font-weight: 700; border: none; cursor: pointer;
+  transition: opacity 0.2s;
+}
+.info-dialog-btn:active { opacity: 0.8; transform: scale(0.98); }
+.az-text-block { cursor: pointer; }
+.az-option-clickable {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.az-option-clickable:active {
+  background-color: var(--overlay-light);
+}
+.option-arrow {
+  color: var(--app-on-surface-variant);
+  font-size: 24px;
+  margin-left: auto;
+}
+
+html[dir="rtl"] .option-arrow {
+  transform: scaleX(-1);
 }
