@@ -70,7 +70,7 @@ function applyTranslations() {
 }
 
 function initLanguageModal() {
-  const btnLang = document.getElementById('btn-language');
+  const btnLang = document.getElementById('opt-language'); // Berubah di sini
   const closeLang = document.getElementById('closeLangDialog');
   const langDialog = document.getElementById('languageDialog');
 
@@ -470,26 +470,6 @@ async function initSwitch(id, file, flagOn, flagOff, name) {
   };
 }
 
-function startPingMonitor() {
-  const pingEl = document.getElementById("live-ping");
-  if (!pingEl) return;
-  async function checkPing() {
-    try {
-      const out = await exec("ping -c 1 -W 1 1.1.1.1");
-      const match = out.match(/time=([\d.]+)\s*ms/);
-      if (match && match[1]) {
-        const pingValue = parseFloat(match[1]);
-        pingEl.textContent = `${pingValue} ms`;
-        if (pingValue < 60) pingEl.style.color = "#69f0ae";
-        else if (pingValue < 120) pingEl.style.color = "#ffd740";
-        else pingEl.style.color = "#ff5252";
-      } else { pingEl.textContent = "Timeout"; pingEl.style.color = "#ff5252"; }
-    } catch (e) { pingEl.textContent = "Offline"; pingEl.style.color = "#ff5252"; }
-    setTimeout(checkPing, 2000);
-  }
-  checkPing();
-}
-
 async function updateDeviceInfo() {
   const setTxt = (id, val) => document.getElementById(id).textContent = val || "-";
   try {
@@ -499,8 +479,164 @@ async function updateDeviceInfo() {
     setTxt("device-model", (await exec("getprop ro.product.model")).trim());
     setTxt("device-android", (await exec("getprop ro.build.version.release")).trim());
     setTxt("device-chipset", (await exec("getprop ro.board.platform")).trim());
-    setTxt("device-abis", (await exec("getprop ro.product.cpu.abilist")).trim());
   } catch (e) { console.warn("Info fetch error", e); }
+}
+
+// === NEW FEATURE: LIVE NETWORK HEALTH MONITOR ===
+let netMonitorState = {
+  lastOutSegs: 0,
+  lastRetransSegs: 0,
+  isRecovering: false
+};
+
+function startNetworkHealthMonitor() {
+  async function checkHealth() {
+    const homeTab = document.getElementById('tab-home');
+    if (homeTab && !homeTab.classList.contains('active')) {
+      setTimeout(checkHealth, 4000); 
+      return;
+    }
+
+    if (netMonitorState.isRecovering) {
+      setTimeout(checkHealth, 3000);
+      return;
+    }
+
+    let rtt1 = 0, rtt2 = 0, latency = 0, jitter = 0, loss = 0;
+    let outSegs = 0, retransSegs = 0, retransRate = 0;
+
+    try {
+      const snmpOut = await exec("cat /proc/net/snmp | grep Tcp: 2>/dev/null || echo ''");
+      const lines = snmpOut.split('\n').filter(l => l.trim().length > 0);
+      if (lines.length >= 2) {
+        const headers = lines[0].trim().split(/\s+/);
+        const values = lines[1].trim().split(/\s+/);
+        const outIdx = headers.indexOf('OutSegs');
+        const retIdx = headers.indexOf('RetransSegs');
+        
+        if (outIdx !== -1 && retIdx !== -1) {
+          outSegs = parseInt(values[outIdx]) || 0;
+          retransSegs = parseInt(values[retIdx]) || 0;
+        }
+      }
+
+      if (netMonitorState.lastOutSegs > 0) {
+        const diffOut = outSegs - netMonitorState.lastOutSegs;
+        const diffRet = retransSegs - netMonitorState.lastRetransSegs;
+        if (diffOut > 0) {
+          retransRate = (diffRet / diffOut) * 100;
+        }
+      }
+      netMonitorState.lastOutSegs = outSegs;
+      netMonitorState.lastRetransSegs = retransSegs;
+
+      // 2. Fetch Ping & RTT 
+      const pingOut = await exec("ping -c 2 -W 1 1.1.1.1 2>/dev/null || echo 'offline'");
+      if (pingOut.includes('offline') || pingOut.includes('100% packet loss')) {
+        loss = 100;
+      } else {
+        const lossMatch = pingOut.match(/(\d+)% packet loss/);
+        if (lossMatch) loss = parseInt(lossMatch[1]);
+        
+        const times = [...pingOut.matchAll(/time=([\d.]+)\s*ms/g)].map(m => parseFloat(m[1]));
+        if (times.length > 0) {
+          latency = times.reduce((a,b)=>a+b, 0) / times.length;
+          if (times.length >= 2) {
+            jitter = Math.abs(times[0] - times[1]);
+          }
+        } else {
+          loss = 100;
+        }
+      }
+
+      let score = 100;
+      if (loss === 100) {
+        score = 0;
+      } else {
+        if (latency > 25) score -= (latency - 25) * 0.4;
+        score -= loss * 5;
+        score -= jitter * 1.5;
+        score -= retransRate * 5; 
+      }
+      score = Math.max(0, Math.min(100, Math.round(score)));
+      document.getElementById('stat-latency').textContent = loss === 100 ? "N/A" : `${latency.toFixed(1)} ms`;
+      document.getElementById('stat-jitter').textContent = loss === 100 ? "N/A" : `${jitter.toFixed(1)} ms`;
+      document.getElementById('stat-loss').textContent = `${loss}%`;
+      document.getElementById('stat-retrans').textContent = `${retransRate.toFixed(2)}%`;
+      
+      const scoreEl = document.getElementById('net-score');
+      const scoreContainer = document.getElementById('net-score-container');
+      const scoreLabel = document.getElementById('net-score-label');
+      const statusBadge = document.getElementById('net-status-badge');
+      const statusIcon = document.getElementById('net-status-icon');
+      const statusText = document.getElementById('net-status-text');
+      const actionText = document.getElementById('net-action-text');
+
+      scoreEl.textContent = score;
+
+      let themeColor = "";
+      let themeBg = "";
+      let iconName = "";
+
+      if (score >= 85) {
+        themeColor = "#69f0ae";
+        themeBg = "rgba(105, 240, 174, 0.15)";
+        statusText.textContent = "Excellent";
+        actionText.textContent = "Connection is stable";
+        iconName = "check_circle";
+      } else if (score >= 70) {
+        themeColor = "#ffd740";
+        themeBg = "rgba(255, 215, 64, 0.15)";
+        statusText.textContent = "Fair";
+        actionText.textContent = "Slight instability detected";
+        iconName = "warning";
+      } else {
+        themeColor = "#ff5252";
+        themeBg = "rgba(255, 82, 82, 0.15)";
+        statusText.textContent = "Poor Network";
+        actionText.textContent = "High drops/latency";
+        iconName = "error";
+      }
+
+      // Terapkan Dynamic Color & Shape
+      scoreContainer.style.backgroundColor = themeBg;
+      scoreEl.style.color = themeColor;
+      scoreLabel.style.color = themeColor;
+      
+      statusBadge.style.backgroundColor = themeBg;
+      statusBadge.style.color = themeColor;
+      statusIcon.textContent = iconName;
+
+      // 5. Trigger Recovery if score drops below 70
+      if (score < 70 && !netMonitorState.isRecovering) {
+        netMonitorState.isRecovering = true;
+        actionText.textContent = "Recovering network...";
+        actionText.style.color = "#ff5252";
+        
+        try {
+          await exec("PingPimp --init-tc 2>/dev/null || true");
+          await exec("ip route flush cache 2>/dev/null || true");
+          await exec("echo 1 > /proc/sys/net/ipv4/tcp_mtu_probing 2>/dev/null || true");
+          toast("Network Score low! Recovery triggered.");
+        } catch(e) {
+          console.warn("Recovery failed:", e);
+        }
+
+        setTimeout(() => { 
+          netMonitorState.isRecovering = false; 
+          actionText.textContent = "Recovery complete";
+          actionText.style.color = "var(--app-on-surface-variant)";
+        }, 10000); 
+      }
+
+    } catch (e) {
+      console.warn("Health check error", e);
+    }
+
+    setTimeout(checkHealth, 8000); 
+  }
+  
+  checkHealth();
 }
 
 let isolatedApps = new Set();
@@ -575,7 +711,6 @@ async function fetchUserPackagesInfo() {
   }
 }
 
-// === BACA LANGSUNG DARI FILE TXT, BUKAN LOCALSTORAGE ===
 async function loadAppConfigs() {
     try {
         const savedIso = await exec("cat /data/adb/modules/PingPimp/isolate_apps.txt 2>/dev/null");
@@ -725,7 +860,6 @@ function renderAppList(type) {
                 toast(`Restored: ${pkg.appLabel}`);
             }
             
-            // Tulis ulang ke file langsung
             const isoStr = Array.from(isolatedApps).join(',');
             await exec(`echo "${isoStr}" > /data/adb/modules/PingPimp/isolate_apps.txt`);
         } 
@@ -767,7 +901,6 @@ function renderAppList(type) {
                 toast(`Normal: ${pkg.appLabel}`);
             }
             
-            // Tulis ulang ke file langsung & update HW Tweak
             const prioStr = Array.from(prioritizedApps).join(',');
             await exec(`echo "${prioStr}" > /data/adb/modules/PingPimp/boost_apps.txt`);
             await exec(`PingPimp --hw-tweak`);
@@ -785,58 +918,157 @@ function renderAppList(type) {
 
 function showTab(tabId) {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.nav-button').forEach(el => el.classList.remove('active'));
-  
+  document.querySelectorAll('.nav-button').forEach(el => el.classList.remove('active'));  
   document.getElementById(`tab-${tabId}`).classList.add('active');
-  document.querySelector(`.nav-button[data-target="${tabId}"]`).classList.add('active');
+  const activeNav = document.querySelector(`.nav-button[data-target="${tabId}"]`);
+  activeNav.classList.add('active');
+
+  const headerTitle = document.getElementById('main-header-title');
+  if (tabId === 'home') {
+      headerTitle.innerHTML = `<span class="material-symbols-outlined">Stacked_Line_Chart</span> PingPimp`;
+  } else {
+      const navLabel = activeNav.querySelector('.nav-label').textContent;
+      headerTitle.innerHTML = navLabel;
+  }
 }
 
 // === INIT ===
 document.addEventListener("DOMContentLoaded", async () => {
   const loadingOverlay = document.getElementById('loading-overlay');
-  
+
   initLanguageModal();
   const savedLang = localStorage.getItem('pingpimp_lang') || 'en';
   await loadLanguage(savedLang);
 
-  // loadAppConfigs sekarang async dan dipanggil berbarengan untuk optimasi loading
-  await Promise.all([
-    updateDeviceInfo(),
-    loadPresetTweakOptions(),
-    loadTcpAlgorithms(),
-    loadPrivateDnsOptions(),
-    initSwitch("switch-netstate", "state.txt", "state", "unstate", "Network State"),
-    initSwitch("switch-saver", "saver.txt", "saver", "unsaver", "Data Saver"),
-    initSwitch("switch-ipv6", "ipv6_state.txt", "disable", "enable", "Disable IPv6"), 
-    loadAppConfigs(), 
-    fetchUserPackagesInfo()
-  ]);
+  loadingOverlay.style.opacity = "0";
+  setTimeout(() => { if (loadingOverlay.parentNode) loadingOverlay.remove(); }, 300);
+
+  updateDeviceInfo();
+  loadPresetTweakOptions();
+  loadTcpAlgorithms();
+  loadPrivateDnsOptions();
   
-  startPingMonitor();
+  initSwitch("switch-auto-mode", "auto_mode.txt", "auto-on", "auto-off", "Smart Auto Mode");
+  initSwitch("switch-netstate", "state.txt", "state", "unstate", "Network State");
+  initSwitch("switch-saver", "saver.txt", "saver", "unsaver", "Data Saver");
+  initSwitch("switch-ipv6", "ipv6_state.txt", "disable", "enable", "Disable IPv6");
+  initSwitch("switch-nicoffload", "nic.txt", "nic-offload", "nic-on", "NIC Offloading");
+  initSwitch("switch-irq", "irq.txt", "irq-affinity", "unirq-affinity", "IRQ Affinity");
+  initSwitch("switch-lowat", "lowat.txt", "lowat", "unlowat", "TCP NotSent Lowat");
+  initSwitch("switch-ksoft", "ksoft.txt", "boost-ksoft", "unboost-ksoft", "Ksoftirqd Boost");
+  
+  const btnSaveLog = document.getElementById('opt-savelog');
+  if (btnSaveLog) {
+    btnSaveLog.addEventListener('click', async () => {
+      try {
+        await exec('cp /data/adb/modules/PingPimp/log.txt /sdcard/PingPimp.log');
+        toast('Log berhasil disimpan ke /sdcard/PingPimp.log');
+      } catch (e) {
+        toast('Gagal menyimpan file log.');
+      }
+    });
+  }
+  
+  startNetworkHealthMonitor();
   rotateBannerMessage();
   setInterval(rotateBannerMessage, 7000);
-  
+
   document.querySelectorAll('.nav-button').forEach(item => {
     item.addEventListener('click', () => showTab(item.dataset.target));
   });
-  
+
   const btnUserIso = document.getElementById('btn-user-apps-isolate');
   const btnSysIso = document.getElementById('btn-system-apps-isolate');
   
   if (btnUserIso && btnSysIso) {
     btnUserIso.addEventListener('click', () => {
       currentIsolateView = 'user';
-      btnUserIso.classList.add('active');
-      btnSysIso.classList.remove('active');
+      btnUserIso.classList.add('active'); btnSysIso.classList.remove('active');
       renderAppList('isolate');
     });
-    
     btnSysIso.addEventListener('click', () => {
       currentIsolateView = 'system';
-      btnSysIso.classList.add('active');
-      btnUserIso.classList.remove('active');
+      btnSysIso.classList.add('active'); btnUserIso.classList.remove('active');
       renderAppList('isolate');
     });
+  }
+  
+  const autoSwitch = document.getElementById('switch-auto-mode');
+  const presetSelect = document.getElementById('select-preset');
+  if (autoSwitch && presetSelect) {
+  const autoSwitch = document.getElementById('switch-auto-mode');
+  
+  function applyAutoModeUIState(isAuto) {
+    const selectsToLock = ['select-preset', 'select-tcp']; 
+    const switchesToLock = ['switch-nicoffload', 'switch-irq', 'switch-lowat', 'switch-ksoft', 'switch-netstate', 'switch-ipv6', 'switch-saver'];
+
+    selectsToLock.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.disabled = isAuto;
+        const parent = el.closest('.az-option');
+        if (parent) {
+           if (isAuto) parent.classList.add('disabled-by-auto');
+           else parent.classList.remove('disabled-by-auto');
+        }
+      }
+    });
+
+    switchesToLock.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.disabled = isAuto;
+        const parent = el.closest('.az-option');
+        if (parent) {
+           if (isAuto) parent.classList.add('disabled-by-auto');
+           else parent.classList.remove('disabled-by-auto');
+        }
+      }
+    });
+  }
+
+  if (autoSwitch) {
+      autoSwitch.addEventListener('change', () => applyAutoModeUIState(autoSwitch.checked));
+      setTimeout(() => applyAutoModeUIState(autoSwitch.checked), 300);
+  }
+
+  // === FLOATING INFO CARD ===
+  const infoDialog = document.getElementById('infoDialog');
+  const infoTitle = document.getElementById('infoDialogTitle');
+  const infoDesc = document.getElementById('infoDialogDesc');
+  const infoIcon = document.getElementById('infoDialogIcon')?.querySelector('.material-symbols-outlined');
+  const closeInfoBtn = document.getElementById('closeInfoDialog');
+
+  if (closeInfoBtn && infoDialog) {
+    closeInfoBtn.addEventListener('click', () => infoDialog.classList.remove('active'));
+    infoDialog.addEventListener('click', (e) => {
+      if (e.target === infoDialog) infoDialog.classList.remove('active');
+    });
+  }
+
+  document.querySelectorAll('.az-text-block').forEach(block => {
+    block.addEventListener('click', () => {
+      const titleEl = block.querySelector('.az-title');
+      const iconEl = block.previousElementSibling; 
+      
+      if (titleEl && iconEl) {
+        const key = titleEl.getAttribute('data-i18n');
+        const extKey = key ? key + 'Ext' : null;
+        
+        if (extKey && currentTranslations[extKey]) {
+          infoTitle.textContent = titleEl.textContent;
+          infoDesc.textContent = currentTranslations[extKey];
+          
+          const materialIcon = iconEl.querySelector('.material-symbols-outlined');
+          if (materialIcon && infoIcon) {
+            infoIcon.textContent = materialIcon.textContent;
+          }
+
+          infoDialog.classList.add('active');
+        }
+      }
+    });
+  });
   }
 
   const btnUserPrio = document.getElementById('btn-user-apps-prioritize');
@@ -845,22 +1077,37 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (btnUserPrio && btnSysPrio) {
     btnUserPrio.addEventListener('click', () => {
       currentPrioritizeView = 'user';
-      btnUserPrio.classList.add('active');
-      btnSysPrio.classList.remove('active');
+      btnUserPrio.classList.add('active'); btnSysPrio.classList.remove('active');
       renderAppList('prioritize');
     });
-    
     btnSysPrio.addEventListener('click', () => {
       currentPrioritizeView = 'system';
-      btnSysPrio.classList.add('active');
-      btnUserPrio.classList.remove('active');
+      btnSysPrio.classList.add('active'); btnUserPrio.classList.remove('active');
       renderAppList('prioritize');
     });
   }
 
-  renderAppList('isolate');
-  renderAppList('prioritize');
+  // 6. TAMPILKAN INDIKATOR LOADING PADA LIST APLIKASI
+  const isolateContainer = document.getElementById('isolate-list-container');
+  const prioritizeContainer = document.getElementById('prioritize-list-container');
+  const loadingText = currentTranslations['loadingApps'] || "Loading apps, please wait...";
+  
+  if (isolateContainer) isolateContainer.innerHTML = `<div style="text-align:center;padding:20px;opacity:0.5;">${loadingText}</div>`;
+  if (prioritizeContainer) prioritizeContainer.innerHTML = `<div style="text-align:center;padding:20px;opacity:0.5;">${loadingText}</div>`;
 
+  // 7. LOAD DAFTAR APLIKASI DI BACKGROUND
+  loadAppConfigs().then(() => {
+    return fetchUserPackagesInfo();
+  }).then(() => {
+    renderAppList('isolate');
+    renderAppList('prioritize');
+  }).catch(err => {
+    console.warn("Failed to load apps completely in background", err);
+    if (isolateContainer) isolateContainer.innerHTML = `<div style="text-align:center;padding:20px;color:#ff5252;">Failed to load apps.</div>`;
+    if (prioritizeContainer) prioritizeContainer.innerHTML = `<div style="text-align:center;padding:20px;color:#ff5252;">Failed to load apps.</div>`;
+  });
+
+  // 8. SETUP PENCARIAN (Debounce)
   let searchTimeoutIso;
   document.getElementById("isolate-search").addEventListener("input", () => {
     clearTimeout(searchTimeoutIso);
@@ -872,7 +1119,4 @@ document.addEventListener("DOMContentLoaded", async () => {
     clearTimeout(searchTimeoutPrio);
     searchTimeoutPrio = setTimeout(() => { renderAppList('prioritize'); }, 300);
   });
-
-  loadingOverlay.style.opacity = "0";
-  setTimeout(() => { if (loadingOverlay.parentNode) loadingOverlay.remove(); }, 300);
 });
