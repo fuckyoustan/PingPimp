@@ -4,6 +4,41 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>PingPimp</title>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var theme = 'miuix', monet = 'on', nav = 'floating', glass = 'off';
+      try {
+        theme = localStorage.getItem('pingpimp_theme') === 'material' ? 'material' : 'miuix';
+        monet = localStorage.getItem('pingpimp_monet') === 'off' ? 'off' : 'on';
+        nav = localStorage.getItem('pingpimp_nav') === 'bar' ? 'bar' : 'floating';
+        glass = localStorage.getItem('pingpimp_glass') === 'on' ? 'on' : 'off';
+      } catch (e) {}
+      root.setAttribute('data-theme', theme);
+      root.setAttribute('data-monet', monet);
+      root.setAttribute('data-nav', nav);
+      root.setAttribute('data-glass', glass);
+    })();
+  </script>
+  <script>
+    (function () {
+      var reported = false;
+      window.addEventListener('error', function (e) {
+        var ov = document.getElementById('loading-overlay');
+        if (!ov || reported || !e.message) return;
+        reported = true;
+        ov.textContent = 'JS Error: ' + e.message;
+      });
+      setTimeout(function () {
+        var ov = document.getElementById('loading-overlay');
+        if (ov && ov.parentNode) {
+          ov.style.transition = 'opacity .3s ease';
+          ov.style.opacity = '0';
+          setTimeout(function () { if (ov.parentNode) ov.remove(); }, 350);
+        }
+      }, 4500);
+    })();
+  </script>
   <script type="importmap">
     {
       "imports": {
@@ -16,12 +51,14 @@
 <body>
   <header>
     <div class="header-title" id="main-header-title">
-      <span class="material-symbols-outlined">Stacked_Line_Chart</span>
-      PingPimp
+      <span class="pp-icon" data-icon="Stacked_Line_Chart" data-branding="true"></span>
+      <span class="header-text">PingPimp</span>
     </div>
   </header>
 
   <div class="main">
+
+    <!-- ============ HOME ============ -->
     <div id="tab-home" class="tab-content active">
 
       <div class="banner">
@@ -32,76 +69,38 @@
       <div class="device-info" role="group" aria-label="Device information">
         <div class="device-info-item">
           <div class="label">
-            <span class="material-symbols-outlined">stars</span>
+            <span class="pp-icon" data-icon="stars"></span>
             <span data-i18n="devInfoVer">PingPimp Version</span>
           </div>
           <div class="value" id="PingPimpVer">Detecting...</div>
         </div>
         <div class="device-info-item">
           <div class="label">
-            <span class="material-symbols-outlined">smartphone</span>
+            <span class="pp-icon" data-icon="smartphone"></span>
             <span data-i18n="devInfoModel">Device Model</span>
           </div>
           <div class="value" id="device-model">-</div>
         </div>
         <div class="device-info-item">
           <div class="label">
-            <span class="material-symbols-outlined">android</span>
+            <span class="pp-icon" data-icon="android"></span>
             <span data-i18n="devInfoAndroid">Android Version</span>
           </div>
           <div class="value" id="device-android">-</div>
         </div>
         <div class="device-info-item">
           <div class="label">
-            <span class="material-symbols-outlined">memory</span>
+            <span class="pp-icon" data-icon="memory"></span>
             <span data-i18n="devInfoKernel">Kernel</span>
           </div>
           <div class="value" id="device-kernel">-</div>
         </div>
         <div class="device-info-item">
           <div class="label">
-            <span class="material-symbols-outlined">laptop_mac</span>
+            <span class="pp-icon" data-icon="laptop_mac"></span>
             <span data-i18n="devInfoChipset">Chipset</span>
           </div>
           <div class="value" id="device-chipset">-</div>
-        </div>
-      </div>
-
-      <div class="monitor-card">
-        <div class="monitor-header">
-          <span class="material-symbols-outlined">query_stats</span>
-          <span data-i18n="monitorTitle">Live Network</span>
-        </div>
-        <div class="monitor-top-section">
-          <div class="monitor-score-container" id="net-score-container">
-            <span class="score-value" id="net-score">--</span>
-            <span class="score-label" id="net-score-label">SCORE</span>
-          </div>
-          <div class="monitor-status-wrapper">
-            <div class="status-badge" id="net-status-badge">
-              <span class="material-symbols-outlined" id="net-status-icon">sync</span>
-              <span id="net-status-text">Evaluating...</span>
-            </div>
-            <div id="net-action-text" class="status-action">-</div>
-          </div>
-        </div>
-        <div class="monitor-stats-grid">
-          <div class="stat-box">
-            <div class="stat-label">Latency</div>
-            <div class="stat-val" id="stat-latency">-- ms</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-label">Jitter</div>
-            <div class="stat-val" id="stat-jitter">-- ms</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-label">Packet Loss</div>
-            <div class="stat-val" id="stat-loss">-- %</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-label">Retransmit</div>
-            <div class="stat-val" id="stat-retrans">-- %</div>
-          </div>
         </div>
       </div>
 
@@ -114,200 +113,232 @@
           </div>
         </div>
         <div class="dev-links">
-          <a href="#" class="pill-btn" id="btn-github">
-            <span class="material-symbols-outlined">code</span>
+          <a href="#" class="pp-btn" id="btn-github">
+            <span class="pp-icon" data-icon="code"></span>
             <span data-i18n="btnGithub">GitHub</span>
           </a>
-          <a href="#" class="pill-btn" id="btn-telegram">
-            <span class="material-symbols-outlined">send</span>
+          <a href="#" class="pp-btn" id="btn-telegram">
+            <span class="pp-icon" data-icon="send"></span>
             <span data-i18n="btnTelegram">Telegram</span>
           </a>
         </div>
       </div>
 
-      <div class="home-footer" style="text-align: center; font-size: 12px; color: var(--app-on-surface); opacity: 0.5; margin-top: 16px; padding-bottom: 8px;" data-i18n="footerText">
+      <div class="home-footer" data-i18n="footerText">
         created by @fuckyoustan with ❤️
       </div>
     </div>
 
+    <!-- ============ CONFIG ============ -->
     <div id="tab-config" class="tab-content">
-    
-      <div class="az-section-title" data-i18n="tabConfigTitle0">AI Automation</div>
-      <div class="az-card-group">
-        
-        <div class="az-option">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">smart_toy</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optAutoMode">Smart Auto Mode</div>
-            <div class="az-desc" data-i18n="tabConfigDesc0">Automatically detect apps and adjust network preset dynamically.</div>
+
+      <div class="pp-section-title" data-i18n="tabConfigTitle0">AI Automation</div>
+      <div class="pp-card">
+
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="smart_toy"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optAutoMode">Smart Auto Mode</div>
+            <div class="pp-option-desc" data-i18n="tabConfigDesc0">Automatically detect apps and adjust network preset dynamically.</div>
           </div>
-          <label class="az-switch-wrapper">
+          <label class="pp-switch">
             <input type="checkbox" id="switch-auto-mode">
-            <span class="az-switch-slider"></span>
+            <span class="pp-switch-slider"></span>
           </label>
         </div>
-      </div>
 
-      <!-- KELOMPOK 1: Performa / Network Tweak -->
-      <div class="az-section-title" data-i18n="tabConfigTitle1">Network Tweak</div>
-      <div class="az-card-group">
-
-        <div class="az-option">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">network_node</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optPreset">Preset Tweak</div>
-            <div class="az-desc" data-i18n="tabConfigDesc1">Set the preset tweak according to your needs.</div>
+        <div class="pp-option" id="row-auto-dns-mobile">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="signal_cellular_alt"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optAutoDnsMobile">Data DNS</div>
+            <div class="pp-option-desc" data-i18n="optAutoDnsMobileDesc">Private DNS applied while on mobile data.</div>
           </div>
-          <select id="select-preset" class="az-select"></select>
+          <div class="pp-option-control">
+            <select id="select-auto-dns-mobile" class="pp-native-select"></select>
+          </div>
+        </div>
+        <div class="pp-inline-field" id="auto-dns-custom-mobile" style="display: none;">
+          <div class="pp-field-label" data-i18n="customDnsLabel">Enter Custom DNS Provider</div>
+          <div class="pp-field-row">
+            <input type="text" id="auto-dns-custom-input-mobile" class="pp-input" data-i18n-placeholder="customDnsPlaceholder" placeholder="e.g. dns.adguard-dns.com">
+            <button id="btn-save-auto-dns-mobile" class="pp-btn pp-btn-filled" data-i18n="btnSet">Set</button>
+          </div>
         </div>
 
-        <div class="az-option">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">memory</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optTcp">TCP Algorithm</div>
-            <div class="az-desc">Select the TCP congestion control algorithm.</div>
+        <div class="pp-option" id="row-auto-dns-wifi">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="wifi"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optAutoDnsWifi">WiFi DNS</div>
+            <div class="pp-option-desc" data-i18n="optAutoDnsWifiDesc">Private DNS applied while on WiFi.</div>
           </div>
-          <select id="select-tcp" class="az-select"></select>
-        </div>
-
-        <div class="az-option">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">dns</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optDns">DNS Option</div>
-            <div class="az-desc" data-i18n="tabConfigDesc2">Secure your DNS queries with encrypted DNS providers.</div>
+          <div class="pp-option-control">
+            <select id="select-auto-dns-wifi" class="pp-native-select"></select>
           </div>
-          <select id="select-dns" class="az-select"></select>
         </div>
-
-        <!-- Wadah Input DNS Custom -->
-        <div id="custom-dns-container" style="display: none; padding: 0 16px 16px 16px;">
-          <div class="custom-input-label" style="font-size: 12px; margin-bottom: 8px;" data-i18n="customDnsLabel">Enter Custom DNS Provider</div>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="custom-dns-input" class="app-search-input" data-i18n-placeholder="customDnsPlaceholder" placeholder="e.g. dns.adguard-dns.com" style="margin-bottom: 0; padding: 12px 16px; border-radius: 12px; flex: 1; height: 44px;">
-            <button id="btn-save-custom-dns" class="pill-btn solid-btn" style="flex: 0 0 auto; height: 44px; border-radius: 12px; margin: 0; padding: 0 16px;" data-i18n="btnSet">Set</button>
+        <div class="pp-inline-field" id="auto-dns-custom-wifi" style="display: none;">
+          <div class="pp-field-label" data-i18n="customDnsLabel">Enter Custom DNS Provider</div>
+          <div class="pp-field-row">
+            <input type="text" id="auto-dns-custom-input-wifi" class="pp-input" data-i18n-placeholder="customDnsPlaceholder" placeholder="e.g. dns.adguard-dns.com">
+            <button id="btn-save-auto-dns-wifi" class="pp-btn pp-btn-filled" data-i18n="btnSet">Set</button>
           </div>
         </div>
       </div>
 
-      <div class="az-section-title" data-i18n="tabConfigTitle6">Advanced Tweaks</div>
-      <div class="az-card-group">
+      <div class="pp-section-title" data-i18n="tabConfigTitle1">Network Tweak</div>
+      <div class="pp-card">
 
-        <div class="az-option">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">network_manage</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optNic">NIC Offloading</div>
-            <div class="az-desc" data-i18n="tabConfigDesc6">Disable GRO/GSO to bypass batching and reduce latency.</div>
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="network_node"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optPreset">Preset Tweak</div>
+            <div class="pp-option-desc" data-i18n="tabConfigDesc1">Set the preset tweak according to your needs.</div>
           </div>
-          <label class="az-switch-wrapper">
+          <div class="pp-option-control">
+            <select id="select-preset" class="pp-native-select"></select>
+          </div>
+        </div>
+
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="memory"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optTcp">TCP Algorithm</div>
+            <div class="pp-option-desc">Select the TCP congestion control algorithm.</div>
+          </div>
+          <div class="pp-option-control">
+            <select id="select-tcp" class="pp-native-select"></select>
+          </div>
+        </div>
+
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="dns"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optDns">DNS Option</div>
+            <div class="pp-option-desc" data-i18n="tabConfigDesc2">Secure your DNS queries with encrypted DNS providers.</div>
+          </div>
+          <div class="pp-option-control">
+            <select id="select-dns" class="pp-native-select"></select>
+          </div>
+        </div>
+
+        <div class="pp-inline-field" id="custom-dns-container" style="display: none;">
+          <div class="pp-field-label" data-i18n="customDnsLabel">Enter Custom DNS Provider</div>
+          <div class="pp-field-row">
+            <input type="text" id="custom-dns-input" class="pp-input" data-i18n-placeholder="customDnsPlaceholder" placeholder="e.g. dns.adguard-dns.com">
+            <button id="btn-save-custom-dns" class="pp-btn pp-btn-filled" data-i18n="btnSet">Set</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="pp-section-title" data-i18n="tabConfigTitle6">Advanced Tweaks</div>
+      <div class="pp-card">
+
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="network_manage"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optNic">NIC Offloading</div>
+            <div class="pp-option-desc" data-i18n="tabConfigDesc6">Disable GRO/GSO to bypass batching and reduce latency.</div>
+          </div>
+          <label class="pp-switch">
             <input type="checkbox" id="switch-nicoffload">
-            <span class="az-switch-slider"></span>
+            <span class="pp-switch-slider"></span>
           </label>
         </div>
 
-        <div class="az-option">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">memory_alt</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optIrq">Hardware IRQ Affinity</div>
-            <div class="az-desc" data-i18n="tabConfigDesc7">Pin network interrupts to performance cores.</div>
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="memory_alt"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optIrq">Hardware IRQ Affinity</div>
+            <div class="pp-option-desc" data-i18n="tabConfigDesc7">Pin network interrupts to performance cores.</div>
           </div>
-          <label class="az-switch-wrapper">
+          <label class="pp-switch">
             <input type="checkbox" id="switch-irq">
-            <span class="az-switch-slider"></span>
+            <span class="pp-switch-slider"></span>
           </label>
         </div>
 
-        <div class="az-option">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">speed</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optLowat">TCP NotSent Lowat</div>
-            <div class="az-desc" data-i18n="tabConfigDesc8">Limit socket queues to prevent bufferbloat.</div>
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="bolt"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optKsoft">Ksoftirqd Boost</div>
+            <div class="pp-option-desc" data-i18n="tabConfigDesc9">Grant real-time priority to kernel network threads.</div>
           </div>
-          <label class="az-switch-wrapper">
-            <input type="checkbox" id="switch-lowat">
-            <span class="az-switch-slider"></span>
-          </label>
-        </div>
-
-        <div class="az-option">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">bolt</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optKsoft">Ksoftirqd Boost</div>
-            <div class="az-desc" data-i18n="tabConfigDesc9">Grant real-time priority to kernel network threads.</div>
-          </div>
-          <label class="az-switch-wrapper">
+          <label class="pp-switch">
             <input type="checkbox" id="switch-ksoft">
-            <span class="az-switch-slider"></span>
+            <span class="pp-switch-slider"></span>
           </label>
         </div>
       </div>
 
-      <div class="az-section-title" data-i18n="tabConfigTitle3">Optimize Internet</div>
-      <div class="az-card-group">
+      <div class="pp-section-title" data-i18n="tabConfigTitle3">Optimize Internet</div>
+      <div class="pp-card">
 
-        <div class="az-option">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">wifi</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optNetState">Disable Network State</div>
-            <div class="az-desc" data-i18n="tabConfigDesc3">Increase network speed by disabling netstats.</div>
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="wifi"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optNetState">Disable Network State</div>
+            <div class="pp-option-desc" data-i18n="tabConfigDesc3">Increase network speed by disabling netstats.</div>
           </div>
-          <label class="az-switch-wrapper">
+          <label class="pp-switch">
             <input type="checkbox" id="switch-netstate">
-            <span class="az-switch-slider"></span>
+            <span class="pp-switch-slider"></span>
           </label>
         </div>
 
-        <div class="az-option">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">vpn_lock</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optIpv6">Disable IPv6 Connection</div>
-            <div class="az-desc" data-i18n="tabConfigDesc4">Force IPv4 routing to prevent IPv6 DNS leaks.</div>
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="wifi_tethering"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optWifiPs">WiFi Low Jitter</div>
+            <div class="pp-option-desc" data-i18n="optWifiPsDesc">Disable Wi-Fi power save for consistent ping. Slightly increases battery use.</div>
           </div>
-          <label class="az-switch-wrapper">
+          <label class="pp-switch">
+            <input type="checkbox" id="switch-wifips">
+            <span class="pp-switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="lan"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optConntrack">ConnTrack Optimization</div>
+            <div class="pp-option-desc" data-i18n="optConntrackDesc">Expand connection table to prevent silent drops under heavy load.</div>
+          </div>
+          <label class="pp-switch">
+            <input type="checkbox" id="switch-conntrack">
+            <span class="pp-switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="vpn_lock"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optIpv6">Disable IPv6 Connection</div>
+            <div class="pp-option-desc" data-i18n="tabConfigDesc4">Force IPv4 routing to prevent IPv6 DNS leaks.</div>
+          </div>
+          <label class="pp-switch">
             <input type="checkbox" id="switch-ipv6">
-            <span class="az-switch-slider"></span>
+            <span class="pp-switch-slider"></span>
           </label>
         </div>
 
-        <div class="az-option">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">data_saver_on</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optDataSaver">Enable Data Saver</div>
-            <div class="az-desc" data-i18n="tabConfigDesc5">Restricts background data and limit internet speed.</div>
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="data_saver_on"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optDataSaver">Enable Data Saver</div>
+            <div class="pp-option-desc" data-i18n="tabConfigDesc5">Restricts background data and limit internet speed.</div>
           </div>
-          <label class="az-switch-wrapper">
+          <label class="pp-switch">
             <input type="checkbox" id="switch-saver">
-            <span class="az-switch-slider"></span>
+            <span class="pp-switch-slider"></span>
           </label>
-        </div>
-      </div>
-
-      <div class="az-section-title" data-i18n="tabConfigTitleOther">Other</div>
-      <div class="az-card-group">
-
-        <div class="az-option az-option-clickable" id="opt-language">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">translate</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optLang">Language</div>
-            <div class="az-desc" data-i18n="optLangDesc">Change PingPimp language.</div>
-          </div>
-          <span class="material-symbols-outlined option-arrow">chevron_right</span>
-        </div>
-        
-        <div class="az-option az-option-clickable" id="opt-savelog">
-          <div class="az-icon-box" style="color: var(--app-primary);"><span class="material-symbols-outlined">save</span></div>
-          <div class="az-text-block">
-            <div class="az-title" data-i18n="optSaveLog">Save Log</div>
-            <div class="az-desc" data-i18n="optSaveLogDesc">Export PingPimp operational log to internal storage.</div>
-          </div>
-          <span class="material-symbols-outlined option-arrow">chevron_right</span>
         </div>
       </div>
     </div>
 
+    <!-- ============ ISOLATE ============ -->
     <div id="tab-isolate" class="tab-content">
       <div class="tab-header">
         <div class="tab-header-icon">
-          <span class="material-symbols-outlined">Shield</span>
+          <span class="pp-icon" data-icon="shield"></span>
         </div>
         <div class="tab-header-text">
           <h2 data-i18n="tabIsolateTitle">Isolate Apps</h2>
@@ -315,20 +346,24 @@
         </div>
       </div>
 
-      <input type="text" id="isolate-search" data-i18n-placeholder="searchIsolate" placeholder="Search apps to isolate..." class="app-search-input" />
-
-      <div class="app-type-toggle">
-        <button class="pill-btn active" id="btn-user-apps-isolate" data-i18n="btnUserApps">User Apps</button>
-        <button class="pill-btn" id="btn-system-apps-isolate" data-i18n="btnSystemApps">System Apps</button>
+      <div class="pp-search">
+        <span class="pp-icon" data-icon="search"></span>
+        <input type="text" id="isolate-search" data-i18n-placeholder="searchIsolate" placeholder="Search apps to isolate..." />
       </div>
 
-      <div id="isolate-list-container" style="margin-bottom: 16px;"></div>
+      <div class="pp-segment">
+        <button class="pp-segment-btn active" id="btn-user-apps-isolate" data-i18n="btnUserApps">User Apps</button>
+        <button class="pp-segment-btn" id="btn-system-apps-isolate" data-i18n="btnSystemApps">System Apps</button>
+      </div>
+
+      <div id="isolate-list-container"></div>
     </div>
 
+    <!-- ============ BOOST ============ -->
     <div id="tab-prioritize" class="tab-content">
       <div class="tab-header">
         <div class="tab-header-icon">
-          <span class="material-symbols-outlined">rocket_launch</span>
+          <span class="pp-icon" data-icon="rocket_launch"></span>
         </div>
         <div class="tab-header-text">
           <h2 data-i18n="tabBoostTitle">Boost Apps</h2>
@@ -336,42 +371,159 @@
         </div>
       </div>
 
-      <input type="text" id="prioritize-search" data-i18n-placeholder="searchBoost" placeholder="Search apps to boost..." class="app-search-input" />
-
-      <div class="app-type-toggle">
-        <button class="pill-btn active" id="btn-user-apps-prioritize" data-i18n="btnUserApps">User Apps</button>
-        <button class="pill-btn" id="btn-system-apps-prioritize" data-i18n="btnSystemApps">System Apps</button>
+      <div class="pp-search">
+        <span class="pp-icon" data-icon="search"></span>
+        <input type="text" id="prioritize-search" data-i18n-placeholder="searchBoost" placeholder="Search apps to boost..." />
       </div>
 
-      <div id="prioritize-list-container" style="margin-bottom: 16px;"></div>
+      <div class="pp-segment">
+        <button class="pp-segment-btn active" id="btn-user-apps-prioritize" data-i18n="btnUserApps">User Apps</button>
+        <button class="pp-segment-btn" id="btn-system-apps-prioritize" data-i18n="btnSystemApps">System Apps</button>
+      </div>
+
+      <div id="prioritize-list-container"></div>
     </div>
 
+    <!-- ============ SETTINGS ============ -->
+    <div id="tab-settings" class="tab-content">
+
+      <div class="pp-section-title" data-i18n="secAppearance">Appearance</div>
+      <div class="pp-card">
+      
+        <!-- Custom Banner -->
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="wallpaper"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optBanner">Custom Banner</div>
+            <div class="pp-option-desc" data-i18n="optBannerDesc">Upload a custom home banner image (GIF, JPG, PNG, WebP).</div>
+          </div>
+        </div>
+        <div class="pp-banner-actions">
+          <button type="button" class="pp-btn" id="btn-banner-upload">
+            <span class="pp-icon" data-icon="upload"></span>
+            <span data-i18n="btnBannerUpload">Upload</span>
+          </button>
+          <button type="button" class="pp-btn" id="btn-banner-reset">
+            <span class="pp-icon" data-icon="delete"></span>
+            <span data-i18n="btnBannerReset">Reset</span>
+          </button>
+          <input type="file" id="banner-file-input" accept=".gif,.jpg,.jpeg,.png,.webp,image/gif,image/jpeg,image/png,image/webp" style="display:none;">
+        </div>
+
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="style"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optUiStyle">UI Style</div>
+            <div class="pp-option-desc" data-i18n="optUiStyleDesc">Choose between Miuix and Material You design.</div>
+          </div>
+        </div>
+        <div class="pp-segment-wrap">
+          <div class="pp-segment" id="themeSegment">
+            <button type="button" class="pp-segment-btn active" data-ui="miuix" data-i18n="uiMiuix">Miuix</button>
+            <button type="button" class="pp-segment-btn" data-ui="material" data-i18n="uiMaterial">Material</button>
+          </div>
+        </div>
+
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="bottom_navigation"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optNavStyle">Navigation Bar</div>
+            <div class="pp-option-desc" data-i18n="optNavStyleDesc">Floating bar or always-visible bottom bar.</div>
+          </div>
+        </div>
+        <div class="pp-segment-wrap">
+          <div class="pp-segment" id="navSegment">
+            <button type="button" class="pp-segment-btn active" data-nav="floating" data-i18n="navFloating">Floating Bar</button>
+            <button type="button" class="pp-segment-btn" data-nav="bar" data-i18n="navBar">Bottom Bar</button>
+          </div>
+        </div>
+
+        <!-- Liquid Glass (hanya tampil di Miuix + Floating via CSS) -->
+        <div class="pp-option" id="opt-glass">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="blur_on"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optGlass">Liquid Glass</div>
+            <div class="pp-option-desc" data-i18n="optGlassDesc">Apply a frosted liquid glass effect to the floating bar.</div>
+          </div>
+          <label class="pp-switch">
+            <input type="checkbox" id="switch-glass">
+            <span class="pp-switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="pp-option">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="palette"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optMonet">Dynamic Color (Monet)</div>
+            <div class="pp-option-desc" data-i18n="optMonetDesc">Use wallpaper-based system colors for both UI styles.</div>
+          </div>
+          <label class="pp-switch">
+            <input type="checkbox" id="switch-monet">
+            <span class="pp-switch-slider"></span>
+          </label>
+        </div>        
+      </div>
+
+      <div class="pp-section-title" data-i18n="tabConfigTitleOther">Other</div>
+      <div class="pp-card">
+
+        <div class="pp-option pp-option-clickable" id="opt-language">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="translate"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optLang">Language</div>
+            <div class="pp-option-desc" data-i18n="optLangDesc">Change PingPimp language.</div>
+          </div>
+          <span class="pp-icon option-arrow" data-icon="chevron_right"></span>
+        </div>
+
+        <div class="pp-option pp-option-clickable" id="opt-savelog">
+          <span class="pp-option-icon"><span class="pp-icon" data-icon="save"></span></span>
+          <div class="pp-option-text">
+            <div class="pp-option-title" data-i18n="optSaveLog">Save Log</div>
+            <div class="pp-option-desc" data-i18n="optSaveLogDesc">Export PingPimp operational log to internal storage.</div>
+          </div>
+          <span class="pp-icon option-arrow" data-icon="chevron_right"></span>
+        </div>
+      </div>
+    </div>
   </div>
 
+  <!-- ============ BOTTOM NAVIGATION ============ -->
   <nav class="bottom-navigation" id="bottomNav">
     <button class="nav-button active" data-target="home">
-      <div class="nav-icon-container">
-        <span class="material-symbols-outlined nav-icon">home</span>
-      </div>
+      <span class="nav-icon-wrap">
+        <span class="nav-indicator"></span>
+        <span class="pp-icon" data-icon="home"></span>
+      </span>
       <span class="nav-label" data-i18n="navHome">Home</span>
     </button>
     <button class="nav-button" data-target="config">
-      <div class="nav-icon-container">
-        <span class="material-symbols-outlined nav-icon">settings</span>
-      </div>
+      <span class="nav-icon-wrap">
+        <span class="nav-indicator"></span>
+        <span class="pp-icon" data-icon="tune"></span>
+      </span>
       <span class="nav-label" data-i18n="navConfig">Config</span>
     </button>
     <button class="nav-button" data-target="isolate">
-      <div class="nav-icon-container">
-        <span class="material-symbols-outlined nav-icon">shield</span>
-      </div>
+      <span class="nav-icon-wrap">
+        <span class="nav-indicator"></span>
+        <span class="pp-icon" data-icon="shield"></span>
+      </span>
       <span class="nav-label" data-i18n="navIsolate">Isolate</span>
     </button>
     <button class="nav-button" data-target="prioritize">
-      <div class="nav-icon-container">
-        <span class="material-symbols-outlined nav-icon">rocket_launch</span>
-      </div>
+      <span class="nav-icon-wrap">
+        <span class="nav-indicator"></span>
+        <span class="pp-icon" data-icon="rocket_launch"></span>
+      </span>
       <span class="nav-label" data-i18n="navBoost">Boost</span>
+    </button>
+    <button class="nav-button" data-target="settings">
+      <span class="nav-icon-wrap">
+        <span class="nav-indicator"></span>
+        <span class="pp-icon" data-icon="settings"></span>
+      </span>
+      <span class="nav-label" data-i18n="navSettings">Settings</span>
     </button>
   </nav>
 
@@ -380,27 +532,27 @@
       <div class="dialog-header">
         <h3 class="dialog-title" data-i18n="langTitle">Select Language</h3>
         <button class="icon-button" id="closeLangDialog">
-          <span class="material-symbols-outlined">close</span>
+          <span class="pp-icon" data-icon="close"></span>
         </button>
       </div>
       <div class="language-list">
         <div class="language-option" data-lang="en">
-          <span>English</span> <span class="material-symbols-outlined check-icon">check_circle</span>
+          <span>English</span> <span class="pp-icon check-icon" data-icon="check_circle"></span>
         </div>
         <div class="language-option" data-lang="id">
-          <span>Bahasa Indonesia</span> <span class="material-symbols-outlined check-icon">check_circle</span>
+          <span>Bahasa Indonesia</span> <span class="pp-icon check-icon" data-icon="check_circle"></span>
         </div>
         <div class="language-option" data-lang="jv">
-          <span>Boso Jowo</span> <span class="material-symbols-outlined check-icon">check_circle</span>
+          <span>Boso Jowo</span> <span class="pp-icon check-icon" data-icon="check_circle"></span>
         </div>
         <div class="language-option" data-lang="ja">
-          <span>日本語</span> <span class="material-symbols-outlined check-icon">check_circle</span>
+          <span>日本語</span> <span class="pp-icon check-icon" data-icon="check_circle"></span>
         </div>
         <div class="language-option" data-lang="ar">
-          <span>العربية</span> <span class="material-symbols-outlined check-icon">check_circle</span>
+          <span>العربية</span> <span class="pp-icon check-icon" data-icon="check_circle"></span>
         </div>
         <div class="language-option" data-lang="ru">
-          <span>Русский</span> <span class="material-symbols-outlined check-icon">check_circle</span>
+          <span>Русский</span> <span class="pp-icon check-icon" data-icon="check_circle"></span>
         </div>
       </div>
     </div>
@@ -409,14 +561,22 @@
   <div class="info-dialog-scrim" id="infoDialog">
     <div class="info-dialog-container">
       <div class="info-dialog-icon" id="infoDialogIcon">
-        <span class="material-symbols-outlined">info</span>
+        <span class="pp-icon" data-icon="info"></span>
       </div>
       <h3 class="info-dialog-title" id="infoDialogTitle">Title</h3>
       <div class="info-dialog-desc" id="infoDialogDesc">Full description goes here...</div>
       <button class="info-dialog-btn" id="closeInfoDialog">Got it</button>
     </div>
   </div>
-  
+
+  <div class="sheet-scrim" id="pickerScrim">
+    <div class="sheet-container" id="pickerSheet">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-title" id="pickerTitle"></div>
+      <div class="sheet-options" id="pickerOptions"></div>
+    </div>
+  </div>
+
   <div id="loading-overlay">Loading...</div>
   <script type="module" src="assets/pingpimp.js"></script>
 </body>
