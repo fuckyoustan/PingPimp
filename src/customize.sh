@@ -34,7 +34,6 @@ ui_print "======================================"
 if [ "$APATCH" ]; then
     ROOT_METHOD="APatch"
     ROOT_VERSION="$APATCH_VER ($APATCH_VER_CODE)"
-    ACTION=false
 elif [ "$KSU" ]; then
     if [ "$KSU_NEXT" ]; then
         ROOT_METHOD="KernelSU Next"
@@ -43,7 +42,6 @@ elif [ "$KSU" ]; then
         ROOT_METHOD="KernelSU"
         ROOT_VERSION="$KSU_KERNEL_VER_CODE ($KSU_VER_CODE)"
     fi
-    ACTION=false
 elif [ "$MAGISK_VER_CODE" ]; then
     ROOT_METHOD="Magisk"
     ROOT_VERSION="$MAGISK_VER ($MAGISK_VER_CODE)"
@@ -58,7 +56,19 @@ ui_print ""
 ui_print "======================================"
 ui_print "             FINALIZATION              "
 ui_print "======================================"
-set_perm_recursive "$MODPATH/system/bin/PingPimp" root root 0755 0755
+ui_print " Configuring systemless mount"
+touch "$MODPATH/skip_mountify"
+if [ "$KSU" = "true" ] || [ "$APATCH" = "true" ]; then
+    touch "$MODPATH/skip_mount"
+    BIN_PATH="/data/adb/modules/PingPimp/system/bin"
+    manager_paths="/data/adb/ap/bin /data/adb/ksu/bin"
+    for dir in $manager_paths; do
+        [ -d "$dir" ] && {
+            ln -sf "$BIN_PATH/PingPimp" "$dir/PingPimp"
+            ui_print "  + $dir/PingPimp -> $BIN_PATH/PingPimp"
+        }
+    done
+fi
 sleep 2
 ui_print " Installation successful"
 ui_print " Completed at : $(date '+%d %b %Y - %H:%M %Z')"
