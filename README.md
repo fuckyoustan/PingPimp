@@ -50,7 +50,7 @@ PingPimp is packed with real, measurable network manipulation tools accessible v
 </p>
 <p align="center">
   <img src="screenshot/3.png" alt="Isolate Screen" width="45%">
-  <img src="screenshot/7.png" alt="Boost Screen" width="45%">
+  <img src="screenshot/4.png" alt="Boost Screen" width="45%">
 </p>
 <p align="center">
   <img src="screenshot/5.png" alt="Isolate Screen" width="45%">
