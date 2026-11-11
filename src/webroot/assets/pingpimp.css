@@ -2,7 +2,7 @@
 @import "https://mui.kernelsu.org/internal/colors.css";
 
 /* ============================================================
-   ICON FONT (Material Symbols — tema Material + ikon branding)
+   ICON FONT (Material Symbols)
    ============================================================ */
 @font-face {
   font-family: 'Material Symbols Outlined';
@@ -20,87 +20,24 @@
 }
 
 /* ============================================================
-   TOKENS — MIUIX (LSPosed / HyperOS)
+   TOKENS — MATERIAL 3 EXPRESSIVE
    ============================================================ */
-html[data-theme="miuix"] {
-  --font-app: "MiSans", "MiSans VF", "HarmonyOS Sans SC", -apple-system, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
-
-  --shape-card: 16px;
-  --shape-dialog: 20px;
-  --shape-sheet: 20px;
-  --shape-field: 12px;
-  --shape-btn: 100px;
-  --shape-search: 16px;
-  --shape-seg: 10px;
-
-  --divider-inset: 56px;
-  --divider-inset-app: 76px;
-  --list-min-h: 60px;
-  --card-gap: 12px;
-
-  --fs-header: 28px; --fw-header: 800; --ls-header: -0.6px;
-  --fs-section: 13px; --fw-section: 500; --color-section: var(--app-on-surface-variant);
-  --fs-title: 16px; --fw-title: 500;
-  --fs-desc: 13px;
-  --fs-btn: 14px; --fw-btn: 600;
-
-  --s-bg: #0b0b0f;
-  --s-surface: #17171c;
-  --s-surface-2: #232329;
-  --s-surface-3: #30303a;
-  --s-on-surface: #f3f3f6;
-  --s-on-surface-variant: #97979f;
-  --s-outline: #5c5c66;
-  --s-hairline: rgba(255, 255, 255, 0.07);
-  --s-primary: #5b9dff;
-  --s-on-primary: #0a1424;
-  --s-primary-container: #1e3a63;
-  --s-on-primary-container: #d6e6ff;
-  --s-secondary-container: #26354d;
-  --s-on-secondary-container: #d7e3f7;
-  --s-switch-off: #3c3c46;
-
-  --elev-card: none;
-  --elev-float: 0 10px 30px rgba(0, 0, 0, 0.38);
-  --elev-thumb: 0 2px 5px rgba(0, 0, 0, 0.35);
-  --scrim-color: rgba(0, 0, 0, 0.4);
-}
-@media (prefers-color-scheme: light) {
-  html[data-theme="miuix"] {
-    --s-bg: #f4f4f7;
-    --s-surface: #ffffff;
-    --s-surface-2: #eff0f2;
-    --s-surface-3: #e4e4e8;
-    --s-on-surface: #1b1b1f;
-    --s-on-surface-variant: #84848d;
-    --s-outline: #c8c8cd;
-    --s-hairline: rgba(0, 0, 0, 0.06);
-    --s-primary: #2f7cf6;
-    --s-on-primary: #ffffff;
-    --s-primary-container: #d8e7ff;
-    --s-on-primary-container: #0c3878;
-    --s-secondary-container: #e2ebf9;
-    --s-on-secondary-container: #22344c;
-    --s-switch-off: #e6e6eb;
-    --elev-float: 0 10px 28px rgba(25, 28, 45, 0.16);
-  }
-}
-
-/* ============================================================
-   TOKENS — MATERIAL 3
-   Kartu grouped + pemisah "hamburger stack":
-   tebal 3px, warna transparan (turunan bg) → kartu terasa terpisah
-   ============================================================ */
-html[data-theme="material"] {
+html {
   --font-app: Roboto, "Roboto Flex", "Segoe UI", -apple-system, "SF Pro Display", sans-serif;
 
-  --shape-card: 18px;
+  /* Material 3 Expressive — shape scale */
+  --shape-card: 24px;
   --shape-dialog: 28px;
   --shape-sheet: 28px;
   --shape-field: 14px;
-  --shape-btn: 100px;
+  --shape-btn: 20px;
   --shape-search: 100px;
   --shape-seg: 100px;
+
+  /* Motion token Expressive: spring overshoot untuk momen tekan/pilih */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --dur-press: 0.35s;
 
   --list-min-h: 68px;
   --card-gap: 16px;
@@ -109,11 +46,12 @@ html[data-theme="material"] {
   --stack-div-h: 3px;
   --stack-div-color: color-mix(in srgb, var(--app-bg) 72%, transparent);
 
-  --fs-header: 22px; --fw-header: 500; --ls-header: 0;
-  --fs-section: 12px; --fw-section: 500; --color-section: var(--app-primary);
-  --fs-title: 16px; --fw-title: 400;
-  --fs-desc: 12px;
-  --fs-btn: 14px; --fw-btn: 500;
+  /* Skala tipografi Expressive */
+  --fs-header: 26px; --fw-header: 600; --ls-header: -0.2px;
+  --fs-section: 13px; --fw-section: 600; --color-section: var(--app-primary);
+  --fs-title: 16px; --fw-title: 500;
+  --fs-desc: 13px;
+  --fs-btn: 14px; --fw-btn: 600;
 
   --s-bg: #141218;
   --s-surface: #211f26;
@@ -137,7 +75,7 @@ html[data-theme="material"] {
   --scrim-color: rgba(0, 0, 0, 0.32);
 }
 @media (prefers-color-scheme: light) {
-  html[data-theme="material"] {
+  html {
     --s-bg: #f7f2fa;
     --s-surface: #f3edf7;
     --s-surface-2: #ece6f0;
@@ -181,10 +119,8 @@ html {
 }
 @media (prefers-color-scheme: light) { html { color-scheme: light; } }
 
-html[data-theme="miuix"][data-nav="bar"]          { --body-pad: calc(80px + var(--window-inset-bottom, 0px)); }
-html[data-theme="miuix"][data-nav="floating"]     { --body-pad: calc(96px + var(--window-inset-bottom, 0px)); }
-html[data-theme="material"][data-nav="bar"]       { --body-pad: calc(100px + var(--window-inset-bottom, 0px)); }
-html[data-theme="material"][data-nav="floating"]  { --body-pad: calc(92px + var(--window-inset-bottom, 0px)); }
+html[data-nav="bar"]      { --body-pad: calc(100px + var(--window-inset-bottom, 0px)); }
+html[data-nav="floating"] { --body-pad: calc(92px + var(--window-inset-bottom, 0px)); }
 
 html[data-monet="on"] {
   --app-primary: var(--primary, var(--s-primary));
@@ -193,8 +129,6 @@ html[data-monet="on"] {
   --app-on-primary-container: var(--onPrimaryContainer, var(--s-on-primary-container));
   --app-secondary-container: var(--secondaryContainer, var(--s-secondary-container));
   --app-on-secondary-container: var(--onSecondaryContainer, var(--s-on-secondary-container));
-}
-html[data-monet="on"][data-theme="material"] {
   --app-bg: var(--background, var(--s-bg));
   --app-surface: var(--surfaceContainer, var(--s-surface));
   --app-surface-2: var(--surfaceContainerHigh, var(--s-surface-2));
@@ -223,7 +157,7 @@ body {
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-/* === SISTEM IKON GANDA === */
+/* === SISTEM IKON === */
 .pp-icon {
   font-size: 24px; width: 1em; height: 1em;
   display: inline-flex; align-items: center; justify-content: center;
@@ -232,7 +166,7 @@ body {
 .pp-icon svg { width: 100%; height: 100%; display: block; }
 .pp-icon .material-symbols-outlined { font-size: 1em; line-height: 1; }
 
-/* === HEADER (selalu kiri, kedua tema) === */
+/* === HEADER — app bar solid surface M3 (tanpa blur) === */
 header {
   position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
   height: calc(76px + var(--window-inset-top, 0px));
@@ -242,8 +176,7 @@ header {
 }
 header::before {
   content: ""; position: absolute; inset: 0;
-  background-color: var(--app-bg); opacity: 0.86;
-  backdrop-filter: blur(24px) saturate(1.5); -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  background-color: var(--app-bg); opacity: 1;
   z-index: -1;
 }
 .header-title {
@@ -251,15 +184,16 @@ header::before {
   font-size: var(--fs-header); font-weight: var(--fw-header);
   letter-spacing: var(--ls-header); color: var(--app-on-surface);
 }
-.header-title .pp-icon { color: var(--app-primary); }
-html[data-theme="miuix"] .header-title .pp-icon { font-size: 26px; }
-html[data-theme="material"] .header-title .pp-icon { font-size: 24px; }
+.header-title .pp-icon { color: var(--app-primary); font-size: 24px; }
 
 /* === LAYOUT === */
 .main { max-width: 500px; margin: 0 auto; padding: 0 14px; }
 .tab-content { display: none; }
-.tab-content.active { display: block; animation: fadeIn 0.3s ease; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.tab-content.active { display: block; animation: tabInM3E 0.35s var(--ease-standard); }
+@keyframes tabInM3E {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
 /* === SECTION TITLE === */
 .pp-section-title {
@@ -270,11 +204,11 @@ html[data-theme="material"] .header-title .pp-icon { font-size: 24px; }
 .tab-content .pp-section-title:first-child { margin-top: 4px; }
 
 /* ============================================================
-   KARTU — MIUIX: grouped flat, divider inset
+   KARTU — grouped + PEMISAH HAMBURGER
    ============================================================ */
-html[data-theme="miuix"] .pp-card,
-html[data-theme="miuix"] .dev-card,
-html[data-theme="miuix"] .device-info {
+.pp-card,
+.device-info,
+.dev-card {
   background-color: var(--app-surface);
   border-radius: var(--shape-card);
   display: flex; flex-direction: column;
@@ -282,83 +216,45 @@ html[data-theme="miuix"] .device-info {
   margin-bottom: var(--card-gap);
   transition: background-color 0.25s ease;
 }
-html[data-theme="miuix"] .device-info { padding: 4px 0; }
-html[data-theme="miuix"] .dev-card { padding: 16px 18px; }
+.pp-option { padding: 14px 16px; min-height: var(--list-min-h); }
+.pp-inline-field { padding: 2px 16px 14px 16px; }
+.device-info { padding: 0; }
+.dev-card { padding: 18px; }
 
-html[data-theme="miuix"] .pp-option + .pp-option::before,
-html[data-theme="miuix"] .pp-inline-field + .pp-option::before,
-html[data-theme="miuix"] .pp-segment-wrap + .pp-option::before,
-html[data-theme="miuix"] .pp-banner-actions + .pp-option::before {
-  content: ""; position: absolute; top: 0;
-  left: var(--divider-inset); right: 0;
-  height: 1px; background: var(--app-hairline);
-}
-html[data-theme="miuix"] .app-item + .app-item::before {
-  content: ""; position: absolute; top: 0;
-  left: var(--divider-inset-app); right: 0;
-  height: 1px; background: var(--app-hairline);
-}
-html[data-theme="miuix"] .device-info-item + .device-info-item::before {
-  content: ""; position: absolute; top: 0; left: 52px; right: 16px;
-  height: 1px; background: var(--app-hairline);
-}
-
-/* ============================================================
-   KARTU — MATERIAL: grouped + PEMISAH HAMBURGER
-   Garis pemisah 3px transparan (turunan warna background)
-   → tiap baris terlihat seperti kartu terpisah yang bertumpuk
-   ============================================================ */
-html[data-theme="material"] .pp-card,
-html[data-theme="material"] .device-info,
-html[data-theme="material"] .dev-card {
-  background-color: var(--app-surface);
-  border-radius: var(--shape-card);
-  display: flex; flex-direction: column;
-  overflow: hidden;
-  margin-bottom: var(--card-gap);
-  transition: background-color 0.25s ease;
-}
-html[data-theme="material"] .pp-option { padding: 14px 16px; min-height: var(--list-min-h); }
-html[data-theme="material"] .pp-inline-field { padding: 2px 16px 14px 16px; }
-html[data-theme="material"] .pp-segment-wrap { padding: 2px 16px 14px 16px; }
-html[data-theme="material"] .device-info { padding: 3px 0; }
-html[data-theme="material"] .dev-card { padding: 18px; }
-
-/* Pemisah lapisan: tebal + transparan */
-html[data-theme="material"] .pp-option + .pp-option::before,
-html[data-theme="material"] .pp-inline-field + .pp-option::before,
-html[data-theme="material"] .pp-segment-wrap + .pp-option::before,
-html[data-theme="material"] .pp-banner-actions + .pp-option::before,
-html[data-theme="material"] .device-info-item + .device-info-item::before,
-html[data-theme="material"] .app-item + .app-item::before {
+/* Pemisah lapisan: tebal + transparan (device-info TIDAK termasuk —
+   memakai divider inset M3 1px sejajar teks) */
+.pp-option + .pp-option::before,
+.pp-inline-field + .pp-option::before,
+.pp-banner-actions + .pp-option::before,
+.app-item + .app-item::before {
   content: ""; position: absolute; top: 0; left: 0; right: 0;
   height: var(--stack-div-h);
   background: var(--stack-div-color);
 }
 
-html[data-theme="material"] .app-item { padding: 12px 16px; min-height: 68px; }
+.app-item { padding: 12px 16px; min-height: 68px; }
 
-/* === BARIS OPSI (shared) === */
+/* === BARIS OPSI === */
 .pp-option {
   display: flex; align-items: center; gap: 14px;
-  padding: 12px 16px; min-height: var(--list-min-h); position: relative;
+  position: relative;
 }
 .pp-option-icon {
   width: 26px; height: 26px; background: transparent; border-radius: 0;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   color: var(--app-primary);
 }
-html[data-theme="miuix"] .pp-option-icon .pp-icon { font-size: 24px; }
-html[data-theme="material"] .pp-option-icon .pp-icon { font-size: 22px; }
+.pp-option-icon .pp-icon { font-size: 22px; }
 
 .pp-option-text { display: flex; flex-direction: column; flex: 1; min-width: 0; justify-content: center; cursor: pointer; }
 .pp-option-title {
   font-size: var(--fs-title); font-weight: var(--fw-title);
   color: var(--app-on-surface); margin-bottom: 2px;
+  line-height: 1.3;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .pp-option-desc {
-  font-size: var(--fs-desc); color: var(--app-on-surface-variant); line-height: 1.45;
+  font-size: var(--fs-desc); color: var(--app-on-surface-variant); line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .pp-option-clickable { cursor: pointer; transition: background-color 0.2s ease; }
@@ -366,142 +262,175 @@ html[data-theme="material"] .pp-option-icon .pp-icon { font-size: 22px; }
 .option-arrow { font-size: 22px; color: var(--app-on-surface-variant); margin-left: auto; }
 
 /* === INLINE FIELD === */
-.pp-inline-field { padding: 2px 16px 14px 16px; }
 .pp-field-label { font-size: 12px; font-weight: 500; color: var(--app-on-surface-variant); margin-bottom: 8px; }
 .pp-field-row { display: flex; gap: 8px; }
 .pp-input {
-  flex: 1; min-width: 0; height: 46px; padding: 0 16px;
+  flex: 1; min-width: 0; height: 48px; padding: 0 16px;
   border-radius: var(--shape-field); border: none;
   background-color: var(--app-surface-2); color: var(--app-on-surface);
   font-size: 14px; font-family: inherit; outline: none;
   transition: background-color 0.25s ease, box-shadow 0.25s ease;
 }
 .pp-input:focus { box-shadow: inset 0 0 0 2px var(--app-primary); }
-.pp-field-row .pp-btn { flex: 0 0 auto; height: 46px; padding: 0 20px; }
+.pp-field-row .pp-btn { flex: 0 0 auto; height: 48px; padding: 0 20px; }
 
-/* === BUTTONS === */
+/* === BUTTONS — M3E: tombol tonal besar (48px) yang morph saat ditekan === */
 .pp-btn {
-  flex: 1; height: 44px; padding: 0 18px;
+  flex: 1; height: 48px; padding: 0 18px;
   border-radius: var(--shape-btn);
-  background-color: var(--app-surface-2); color: var(--app-on-surface);
+  background: var(--app-secondary-container); color: var(--app-on-secondary-container);
   font-size: var(--fs-btn); font-weight: var(--fw-btn); text-decoration: none;
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.25s ease;
+  transition: transform var(--dur-press) var(--ease-spring),
+              border-radius var(--dur-press) var(--ease-spring),
+              background-color 0.25s ease, opacity 0.15s ease;
   cursor: pointer; border: none; font-family: inherit;
 }
-html[data-theme="material"] .pp-btn {
-  height: 40px;
-  background: var(--app-secondary-container); color: var(--app-on-secondary-container);
-}
+.pp-btn:active { transform: scale(0.96); border-radius: 10px; }
 .pp-btn .pp-icon { font-size: 18px; }
-.pp-btn:active { transform: scale(0.97); opacity: 0.9; }
+.pp-btn:disabled { opacity: 0.45; pointer-events: none; }
 .pp-btn-filled { background-color: var(--app-primary) !important; color: var(--app-on-primary) !important; }
 
-/* === SELECT === */
-.pp-native-select { display: none !important; }
+/* === SELECT — M3E: nilai select jadi tonal chip, pill yang morph saat ditekan === */
 .pp-option-control { display: flex; align-items: center; flex-shrink: 0; }
 .pp-select-value {
   display: flex; align-items: center;
-  background: transparent; border: none; cursor: pointer;
+  color: var(--app-on-surface-variant);
+  background: var(--app-surface-2);
+  border: none; cursor: pointer;
+  border-radius: 100px;
+  padding: 8px 14px; min-height: 40px; gap: 4px;
   font-size: 14px; font-weight: 500; font-family: inherit;
-  padding: 10px 2px; max-width: 150px;
+  max-width: 180px;
+  transition: border-radius var(--dur-press) var(--ease-spring), background-color 0.2s ease, opacity 0.2s ease;
 }
-html[data-theme="miuix"] .pp-select-value { color: var(--app-primary); font-weight: 600; }
-html[data-theme="material"] .pp-select-value { color: var(--app-on-surface-variant); }
+.pp-select-value:active { border-radius: 12px; background: var(--app-surface-3); }
+.pp-select-value:disabled { opacity: 0.45; pointer-events: none; }
 .pp-select-value-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pp-select-value .pp-icon { font-size: 20px; color: var(--app-on-surface-variant); margin-left: 2px; }
 
-/* === SWITCH === */
+/* === SWITCH — presisi spec m3.material.io/components/switch/specs
+   + posisi handle dari source Compose M3 Switch.kt:
+   - track 52x32dp corner full, outline 2dp (off = surfaceContainerHighest
+     + outline; on = primary, outline primary)
+   - handle varian "with icon": off 24dp @x4 (onSurfaceVariant),
+     on 24dp @x24 = maxBound (onPrimary), pressed 28dp @x2/@x22 —
+     memenuhi tinggi dalam track (32 - 2x2 outline) & pusat invarian
+   - ikon SELALU 16dp, TIDAK bergerak saat ditekan (pusat off x16 / on x36);
+     X = cutout warna track (surfaceContainerHighest), check = primary
+   - motion material-web: tekan 100ms linear, lepas 250ms spring
+   (rule dasar LTR; RTL memakai anchor kanan di bawah) */
 .pp-switch { position: relative; display: inline-block; width: 52px; height: 32px; flex-shrink: 0; z-index: 2; }
 .pp-switch input { opacity: 0; width: 0; height: 0; }
-.pp-switch-slider { position: absolute; inset: 0; cursor: pointer; border-radius: 100px; transition: background-color 0.25s ease, border-color 0.25s ease; }
-.pp-switch-slider::before {
-  content: ""; position: absolute; border-radius: 50%;
-  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1), width 0.25s cubic-bezier(0.2, 0, 0, 1), height 0.25s cubic-bezier(0.2, 0, 0, 1), background-color 0.25s ease;
+/* Target sentuh M3 48dp — area klik saja, nol efek layout */
+.pp-switch::before {
+  content: ""; position: absolute; left: 50%; top: 50%;
+  width: 48px; height: 48px; transform: translate(-50%, -50%);
 }
-
-/* Miuix: iOS/HyperOS polos */
-html[data-theme="miuix"] .pp-switch-slider { background: var(--switch-off); }
-html[data-theme="miuix"] .pp-switch-slider::before {
-  top: 2px; left: 2px; width: 28px; height: 28px;
-  background: #ffffff; box-shadow: var(--elev-thumb);
-}
-html[data-theme="miuix"] .pp-switch input:checked + .pp-switch-slider { background: var(--app-primary); }
-html[data-theme="miuix"] .pp-switch input:checked + .pp-switch-slider::before { transform: translateX(20px); }
-
-/* Material 3: thumb ✓/✕ — rule dasar LTR (termasuk transisi `right`
-   agar ikon tetap teranimasi saat RTL memakai anchor kanan) */
-html[data-theme="material"] .pp-switch-slider {
+.pp-switch-slider {
+  position: absolute; inset: 0; cursor: pointer;
   background: var(--switch-off); border: 2px solid var(--app-outline);
+  border-radius: 100px;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
 }
-html[data-theme="material"] .pp-switch-slider::before {
-  top: 50%; left: 6px; width: 16px; height: 16px;
+.pp-switch-slider::before {
+  content: ""; position: absolute;
+  top: 50%; left: 4px; width: 24px; height: 24px; border-radius: 50%;
   background: var(--app-on-surface-variant);
-  transform: translateY(-50%);
+  transform: translate(0, -50%);
+  transition: transform 0.25s var(--ease-spring),
+              width 0.25s var(--ease-spring), height 0.25s var(--ease-spring),
+              background-color 0.25s ease;
 }
-html[data-theme="material"] .pp-switch input:checked + .pp-switch-slider {
+/* Tekan: 100ms linear (material-web pressed handle) */
+.pp-switch:active .pp-switch-slider::before {
+  transition-duration: 0.1s; transition-timing-function: linear;
+}
+/* State layer M3: hover 8% / pressed 12% di atas handle
+   (off: onSurface di atas onSurfaceVariant; on: primary di atas onPrimary) */
+.pp-switch:hover input:not(:checked) + .pp-switch-slider::before {
+  background: color-mix(in srgb, var(--app-on-surface-variant) 92%, var(--app-on-surface));
+}
+.pp-switch:hover input:checked + .pp-switch-slider::before {
+  background: color-mix(in srgb, var(--app-on-primary) 92%, var(--app-primary));
+}
+.pp-switch:active input:not(:checked) + .pp-switch-slider::before {
+  width: 28px; height: 28px;
+  transform: translate(-2px, -50%);
+  background: color-mix(in srgb, var(--app-on-surface-variant) 88%, var(--app-on-surface));
+}
+.pp-switch input:checked + .pp-switch-slider {
   background: var(--app-primary); border-color: var(--app-primary);
 }
-html[data-theme="material"] .pp-switch input:checked + .pp-switch-slider::before {
-  width: 24px; height: 24px;
+.pp-switch input:checked + .pp-switch-slider::before {
   background: var(--app-on-primary);
-  transform: translate(18px, -50%);
+  transform: translate(20px, -50%);
 }
-html[data-theme="material"] .pp-switch-slider::after {
+.pp-switch:active input:checked + .pp-switch-slider::before {
+  width: 28px; height: 28px;
+  transform: translate(18px, -50%);
+  background: color-mix(in srgb, var(--app-on-primary) 88%, var(--app-primary));
+}
+/* Ikon status: 16dp konstan, center off x16 / on x36 (ikut pusat handle) */
+.pp-switch-slider::after {
   content: "\e5cd";
   font-family: 'Material Symbols Outlined';
   font-weight: normal; font-style: normal; line-height: 1;
   -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga';
-  position: absolute; top: 50%; left: 14px;
+  position: absolute; top: 50%; left: 16px;
   transform: translate(-50%, -50%);
-  font-size: 10px;
+  font-size: 16px;
   color: var(--app-surface-3);
   pointer-events: none;
-  transition: left 0.25s cubic-bezier(0.2, 0, 0, 1),
-              right 0.25s cubic-bezier(0.2, 0, 0, 1),
-              font-size 0.25s cubic-bezier(0.2, 0, 0, 1),
-              color 0.25s ease;
+  transition: left 0.25s var(--ease-spring), color 0.25s ease;
 }
-html[data-theme="material"] .pp-switch input:checked + .pp-switch-slider::after {
+.pp-switch input:checked + .pp-switch-slider::after {
   content: "\e5ca";
-  left: 36px; font-size: 16px;
+  left: 36px;
   color: var(--app-primary);
 }
 
-/* === SEGMENTED === */
-.pp-segment { display: flex; margin-bottom: 14px; }
-.pp-segment-wrap .pp-segment { margin-bottom: 0; }
-html[data-theme="miuix"] .pp-segment-wrap { padding: 2px 16px 14px 16px; }
+/* === APP SOURCE TOGGLE — segmented button M3, mode SEPARATE ROUNDED
+   (ala M3E button group "separate connectors"):
+   - dua tombol berdiri sendiri, gap 10px, masing-masing flex:1
+   - sudut penuh (stadium) di SEMUA sudut — bukan hanya sudut luar grup
+   - outline 1dp role outline; terpilih = secondaryContainer +
+     ikon Check menggantikan ikon segmen (leading-icon swap M3);
+     tekan = state layer onSurface 8% */
+.pp-segment { display: flex; gap: 10px; margin-bottom: 14px; }
 .pp-segment-btn {
-  flex: 1; padding: 10px 12px; font-size: 14px; font-weight: 500;
-  font-family: inherit; cursor: pointer; border: none; background: transparent;
-  color: var(--app-on-surface-variant);
+  flex: 1; min-height: 48px; padding: 0 16px;
   display: flex; align-items: center; justify-content: center;
-  transition: all 0.25s ease; white-space: nowrap; min-height: 40px;
+  background: transparent; border: 1px solid var(--app-outline);
+  border-radius: 100px;
+  color: var(--app-on-surface); font-size: 14px; font-weight: 500;
+  font-family: inherit; cursor: pointer; white-space: nowrap;
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
 }
-html[data-theme="miuix"] .pp-segment {
-  background: var(--app-surface-2); border-radius: var(--shape-seg); padding: 2px; gap: 2px;
+.pp-segment-btn:active { background: color-mix(in srgb, var(--app-on-surface) 8%, transparent); }
+.pp-segment-btn.active {
+  background: var(--app-secondary-container); color: var(--app-on-secondary-container);
+  border-color: var(--app-secondary-container);
+  font-weight: 600;
 }
-html[data-theme="miuix"] .pp-segment-btn { border-radius: calc(var(--shape-seg) - 2px); }
-html[data-theme="miuix"] .pp-segment-btn.active {
-  background: var(--app-surface); color: var(--app-on-surface); font-weight: 600;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+.pp-segment-btn.active:active {
+  background: color-mix(in srgb, var(--app-on-secondary-container) 12%, var(--app-secondary-container));
 }
-html[data-theme="material"] .pp-segment-btn { border: 1px solid var(--app-outline); color: var(--app-on-surface); }
-html[data-theme="material"] .pp-segment-btn:first-child { border-radius: 100px 0 0 100px; }
-html[data-theme="material"] .pp-segment-btn:last-child { border-radius: 0 100px 100px 0; }
-html[data-theme="material"] .pp-segment-btn + .pp-segment-btn { margin-left: -1px; }
-html[data-theme="material"] .pp-segment-btn::before {
-  content: "\e5ca"; font-family: 'Material Symbols Outlined';
-  font-weight: normal; font-style: normal; line-height: 1; font-size: 16px;
-  display: inline-block; -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga';
-  width: 0; overflow: hidden;
-  transition: width 0.2s ease, margin-inline-end 0.2s ease;
+/* Slot ikon 18dp: unselected = ikon konten, selected = check */
+.pp-segment-btn .pp-seg-ic,
+.pp-segment-btn .pp-seg-check {
+  flex: 0 0 auto; width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; overflow: hidden;
+  transition: width var(--dur-press) var(--ease-spring),
+              margin var(--dur-press) var(--ease-spring),
+              opacity var(--dur-press) var(--ease-standard),
+              transform var(--dur-press) var(--ease-spring);
 }
-html[data-theme="material"] .pp-segment-btn.active {
-  background: var(--app-secondary-container); color: var(--app-on-secondary-container); font-weight: 600;
-}
-html[data-theme="material"] .pp-segment-btn.active::before { width: 16px; margin-inline-end: 8px; }
+.pp-segment-btn .pp-seg-ic { margin-inline-end: 8px; opacity: 1; transform: scale(1); }
+.pp-segment-btn .pp-seg-check { margin-inline-end: 0; width: 0; opacity: 0; transform: scale(0.5); }
+.pp-segment-btn.active .pp-seg-ic { margin-inline-end: 0; width: 0; opacity: 0; transform: scale(0.5); }
+.pp-segment-btn.active .pp-seg-check { margin-inline-end: 8px; width: 18px; opacity: 1; transform: scale(1); }
 
 /* === SEARCH === */
 .pp-search {
@@ -515,7 +444,7 @@ html[data-theme="material"] .pp-segment-btn.active::before { width: 16px; margin
   color: var(--app-on-surface-variant); pointer-events: none;
 }
 .pp-search input {
-  width: 100%; height: 48px; border: none; background: transparent; outline: none;
+  width: 100%; height: 52px; border: none; background: transparent; outline: none;
   color: var(--app-on-surface); font-size: 15px; font-family: inherit;
   padding: 0 16px 0 48px;
 }
@@ -523,13 +452,14 @@ html[data-theme="material"] .pp-segment-btn.active::before { width: 16px; margin
 
 /* === TAB HEADER === */
 .tab-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; padding: 4px 4px 0; }
-.tab-header-icon { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-html[data-theme="miuix"] .tab-header-icon { color: var(--app-primary); }
-html[data-theme="miuix"] .tab-header-icon .pp-icon { font-size: 26px; }
-html[data-theme="material"] .tab-header-icon { border-radius: 50%; background: var(--app-primary-container); color: var(--app-on-primary-container); }
-html[data-theme="material"] .tab-header-icon .pp-icon { font-size: 22px; }
-.tab-header-text h2 { font-size: 21px; font-weight: 700; color: var(--app-on-surface); margin-bottom: 4px; }
-html[data-theme="miuix"] .tab-header-text h2 { letter-spacing: -0.5px; font-size: 22px; }
+/* M3E signature: kontainer identitas bersudut asimetris (satu sudut kecil) */
+.tab-header-icon {
+  width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  border-radius: 20px 20px 4px 20px;
+  background: var(--app-primary-container); color: var(--app-on-primary-container);
+}
+.tab-header-icon .pp-icon { font-size: 24px; }
+.tab-header-text h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; color: var(--app-on-surface); margin-bottom: 4px; }
 .tab-header-text p { font-size: 13px; color: var(--app-on-surface); opacity: 0.7; line-height: 1.4; }
 
 /* === BANNER === */
@@ -542,17 +472,82 @@ html[data-theme="miuix"] .tab-header-text h2 { letter-spacing: -0.5px; font-size
   backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
 }
 
-/* === DEVICE INFO === */
-.device-info-item { padding: 13px 16px; display: flex; align-items: center; justify-content: space-between; position: relative; }
-.device-info-item .label { display: flex; align-items: center; font-size: 14px; font-weight: 500; }
-.device-info-item .label .pp-icon { font-size: 21px; margin-right: 14px; color: var(--app-primary); }
-.device-info-item .value { font-size: 14px; font-weight: 500; color: var(--app-on-surface); opacity: 0.8; text-align: right; }
-.device-info-item .value#PingPimpVer { color: var(--app-primary); font-weight: 700; opacity: 1; }
+/* ============================================================
+   DEVICE INFO — gaya v11 (M3E): identitas dulu, data menyusul.
+   (1) Identity row (Device Model, paling atas): ikon dalam kontainer
+       48px sudut asimetris 20/20/4/20, primaryContainer (signature
+       M3E, sama dgn tab-header-icon) + label overline + nama model
+       title 20px rata start.
+   (2) Baris data quiet (versi/android/kernel/chipset): ikon & label
+       onSurfaceVariant, nilai onSurface medium + tabular-nums rata
+       akhir; versi modul tetap aksen primary.
+   (3) Divider inset M3 1px — sejajar teks, tidak menyentuh identity.
+   ============================================================ */
+.device-info-item {
+  position: relative;
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 52px; padding: 13px 20px;
+}
+.device-info-item .label {
+  min-width: 0;
+  display: flex; align-items: center; gap: 14px;
+  font-size: 14px; font-weight: 400; color: var(--app-on-surface-variant);
+}
+.device-info-item .label .pp-icon {
+  font-size: 20px; color: var(--app-on-surface-variant); flex-shrink: 0;
+}
+.device-info-item .value {
+  flex-shrink: 0; max-width: 55%;
+  font-size: 14px; font-weight: 500; color: var(--app-on-surface);
+  text-align: end; font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere; line-height: 1.35;
+}
+.device-info-item.is-primary .value { color: var(--app-primary); font-weight: 600; }
+
+/* (1) Identity row — Device Model (gaya v11 M3E) */
+.device-info-item.identity {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "icon overline" "icon value";
+  align-items: center;
+  column-gap: 16px; row-gap: 2px;
+  padding: 18px 20px 16px;
+  min-height: 0;
+}
+.device-info-item.identity .label { display: contents; }
+.device-info-item.identity .label .pp-icon {
+  grid-area: icon; margin: 0;
+  width: 48px; height: 48px;
+  border-radius: 20px 20px 4px 20px;
+  background: var(--app-primary-container);
+  color: var(--app-on-primary-container);
+  font-size: 24px;
+}
+.device-info-item.identity .label span:not(.pp-icon) {
+  grid-area: overline;
+  font-size: 12px; font-weight: 500; letter-spacing: 0.1px;
+  color: var(--app-on-surface-variant);
+}
+.device-info-item.identity .value {
+  grid-area: value;
+  max-width: none;
+  font-size: 20px; font-weight: 600; letter-spacing: -0.2px;
+  line-height: 1.25;
+  color: var(--app-on-surface);
+  text-align: start; overflow-wrap: anywhere;
+}
+
+/* (3) Divider inset M3 — mulai sejajar teks label (20 pad + 20 ikon + 14 gap) */
+.device-info-item + .device-info-item::before {
+  content: ""; position: absolute; top: 0;
+  inset-inline-start: 54px; inset-inline-end: 0;
+  height: 1px; background: var(--app-hairline);
+}
+.device-info-item.identity::before { content: none; }
 
 /* === DEV CARD === */
 .dev-profile { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
 .dev-avatar { width: 58px; height: 58px; border-radius: 50%; object-fit: cover; }
-html[data-theme="miuix"] .dev-avatar { border: 2px solid var(--app-primary); }
 .dev-info { display: flex; flex-direction: column; }
 .dev-username { font-size: 17px; font-weight: 600; color: var(--app-primary); margin-bottom: 3px; }
 .dev-desc { font-size: 13px; color: var(--app-on-surface-variant); }
@@ -564,12 +559,13 @@ html[data-theme="miuix"] .dev-avatar { border: 2px solid var(--app-primary); }
   display: flex; gap: 10px;
   padding: 2px 16px 14px 16px;
 }
-.pp-banner-actions .pp-btn { flex: 1; height: 42px; }
+.pp-banner-actions .pp-btn { flex: 1; height: 48px; }
 .pp-banner-actions .pp-icon { font-size: 18px; }
 
-/* === APP LIST === */
-.app-item { display: flex; align-items: center; gap: 14px; position: relative; }
-html[data-theme="miuix"] .app-item { padding: 10px 16px; min-height: 66px; }
+/* === APP LIST — baris state layer M3 saat ditekan === */
+.app-item { display: flex; align-items: center; gap: 14px; position: relative; transition: background-color 0.2s ease; }
+.app-item:active { background-color: color-mix(in srgb, var(--app-on-surface) 8%, transparent); }
+.app-item-leading { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
 .app-item .app-icon { width: 46px; height: 46px; border-radius: 12px; object-fit: contain; flex-shrink: 0; }
 .app-item .app-icon-placeholder {
   width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0;
@@ -585,7 +581,7 @@ html[data-theme="miuix"] .app-item { padding: 10px 16px; min-height: 66px; }
 .list-state.list-error { color: #ff6b6b; opacity: 1; }
 
 /* ============================================================
-   BOTTOM NAVIGATION — 4 MODE
+   BOTTOM NAVIGATION — 2 MODE (Material 3 / M3E)
    ============================================================ */
 .bottom-navigation {
   position: fixed; z-index: 1000;
@@ -618,91 +614,33 @@ html[data-nav="floating"] .bottom-navigation.nav-hidden {
   transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Urutan lapisan: kaca → pill → kilau → tombol (paling atas) */
-.nav-button { position: relative; z-index: 4; }
-
-/* ---------- MIUIX — BOTTOM BAR (LSPosed) ---------- */
-html[data-theme="miuix"][data-nav="bar"] .bottom-navigation {
-  left: 0; right: 0; bottom: 0; transform: none; width: 100%; max-width: none;
-  height: calc(62px + var(--window-inset-bottom, 0px));
-  padding: 6px 8px calc(6px + var(--window-inset-bottom, 0px));
-  background: var(--app-surface);
-  border-top: 1px solid var(--app-hairline);
-}
-html[data-theme="miuix"][data-nav="bar"] .nav-button { flex: 1; border-radius: 12px; padding: 4px 0; gap: 3px; }
-html[data-theme="miuix"][data-nav="bar"] .nav-icon-wrap { width: 36px; height: 24px; }
-html[data-theme="miuix"][data-nav="bar"] .nav-icon-wrap .pp-icon { font-size: 23px; }
-html[data-theme="miuix"][data-nav="bar"] .nav-indicator { display: none; }
-html[data-theme="miuix"][data-nav="bar"] .nav-button:active { background: var(--app-hairline); }
-html[data-theme="miuix"][data-nav="bar"] .nav-button.active { color: var(--app-primary); }
-html[data-theme="miuix"][data-nav="bar"] .nav-button.active .nav-label { color: var(--app-primary); font-weight: 600; }
-html[data-theme="miuix"][data-nav="bar"] .nav-button.active .pp-icon svg { stroke-width: 2.2; }
-
-/* ---------- MIUIX — FLOATING (port WeaveMask FloatingBottomBar) ---------- */
-html[data-theme="miuix"][data-nav="floating"] .bottom-navigation {
-  left: 12px; right: 12px; bottom: calc(12px + var(--window-inset-bottom, 0px));
-  width: auto; max-width: none;
-  height: 64px;
-  padding: 4px 8px; gap: 2px;
-  background: var(--app-surface);
-  border-radius: 100px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.20);   /* dropShadow 10dp WeaveMask */
-  transform: translateX(var(--lg-bar-x, 0px));     /* rubber-band via JS */
-  transition: background-color 0.25s ease, box-shadow 0.25s ease, opacity 0.3s ease;
-}
-@media (prefers-color-scheme: light) {
-  html[data-theme="miuix"][data-nav="floating"] .bottom-navigation {
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.10);
-  }
-}
-html[data-theme="miuix"][data-nav="floating"] .bottom-navigation.nav-hidden {
-  transform: translateY(calc(100% + 24px + var(--window-inset-bottom, 0px)));
-  transition: transform 0.35s cubic-bezier(0.2, 0, 0, 1), opacity 0.3s ease;
-}
-html[data-theme="miuix"][data-nav="floating"] .nav-button { flex: 1; border-radius: 100px; gap: 3px; }
-html[data-theme="miuix"][data-nav="floating"] .nav-icon-wrap .pp-icon { font-size: 22px; }
-html[data-theme="miuix"][data-nav="floating"] .nav-label { position: relative; z-index: 2; }
-html[data-theme="miuix"][data-nav="floating"] .nav-indicator { display: none; }
-html[data-theme="miuix"][data-nav="floating"] .nav-button:active { background: transparent; }
-html[data-theme="miuix"][data-nav="floating"] .nav-button.active { color: var(--app-primary); }
-html[data-theme="miuix"][data-nav="floating"] .nav-button.active .nav-label { color: var(--app-primary); font-weight: 600; }
-html[data-theme="miuix"][data-nav="floating"] .nav-button.active .pp-icon svg { stroke-width: 2.2; }
-
-/* Pill indikator liquid — BASE */
-.nav-slider-pill {
-  display: none;
-  position: absolute; left: 0; top: 4px;
-  height: calc(100% - 8px);
-  border-radius: 100px;
-  pointer-events: none;
-  will-change: transform;
-  z-index: 3;
-  background: color-mix(in srgb, var(--app-primary) 15%, transparent);
-}
-html[data-theme="miuix"][data-nav="floating"] .nav-slider-pill { display: block; }
-
-/* ---------- MATERIAL — BOTTOM BAR (M3 Navigation Bar) ---------- */
-html[data-theme="material"][data-nav="bar"] .bottom-navigation {
+/* ---------- BOTTOM BAR (default) — M3 Navigation Bar ---------- */
+html[data-nav="bar"] .bottom-navigation {
   left: 0; right: 0; bottom: 0; transform: none; width: 100%; max-width: none;
   height: calc(80px + var(--window-inset-bottom, 0px));
   padding: 8px 8px calc(12px + var(--window-inset-bottom, 0px));
   background: var(--app-surface);
   box-shadow: 0 -1px 0 var(--app-hairline);
 }
-html[data-theme="material"][data-nav="bar"] .nav-button { flex: 1; gap: 6px; border-radius: 100px; }
-html[data-theme="material"][data-nav="bar"] .nav-icon-wrap { width: 60px; height: 32px; }
-html[data-theme="material"][data-nav="bar"] .nav-icon-wrap .pp-icon { font-size: 24px; }
-html[data-theme="material"][data-nav="bar"] .nav-indicator { background: var(--app-secondary-container); }
-html[data-theme="material"][data-nav="bar"] .nav-button.active .nav-indicator { opacity: 1; transform: scale(1); }
-html[data-theme="material"][data-nav="bar"] .nav-button.active { color: var(--app-on-secondary-container); }
-html[data-theme="material"][data-nav="bar"] .nav-button.active .nav-label { color: var(--app-on-surface); }
-html[data-theme="material"][data-nav="bar"] .nav-label { font-size: 12px; font-weight: 600; }
-html[data-theme="material"][data-nav="bar"] .nav-button.active .material-symbols-outlined {
-  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+html[data-nav="bar"] .nav-button { flex: 1; gap: 6px; border-radius: 100px; }
+html[data-nav="bar"] .nav-icon-wrap { width: 64px; height: 36px; }
+html[data-nav="bar"] .nav-icon-wrap .pp-icon { font-size: 24px; }
+/* M3E: indikator lebih besar + ikon aktif membesar dengan spring */
+html[data-nav="bar"] .nav-indicator {
+  background: var(--app-secondary-container);
+  transition: transform var(--dur-press) var(--ease-spring), opacity 0.25s ease, background-color 0.25s ease;
+}
+html[data-nav="bar"] .nav-button.active .nav-indicator { opacity: 1; transform: scale(1); }
+html[data-nav="bar"] .nav-button.active { color: var(--app-on-secondary-container); }
+html[data-nav="bar"] .nav-button.active .nav-label { color: var(--app-on-surface); }
+html[data-nav="bar"] .nav-label { font-size: 12px; font-weight: 600; }
+html[data-nav="bar"] .nav-button.active .nav-icon-wrap .pp-icon { font-size: 26px; }
+html[data-nav="bar"] .nav-button.active .material-symbols-outlined {
+  font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
 }
 
-/* ---------- MATERIAL — FLOATING (BUBBLE) ---------- */
-html[data-theme="material"][data-nav="floating"] .bottom-navigation {
+/* ---------- FLOATING (BUBBLE) — M3E ---------- */
+html[data-nav="floating"] .bottom-navigation {
   bottom: calc(16px + var(--window-inset-bottom, 0px));
   height: 60px; padding: 8px; gap: 4px;
   background: var(--app-surface-2);
@@ -710,105 +648,44 @@ html[data-theme="material"][data-nav="floating"] .bottom-navigation {
   box-shadow: var(--elev-float);
   max-width: calc(100vw - 24px);
 }
-html[data-theme="material"][data-nav="floating"] .nav-button {
+html[data-nav="floating"] .nav-button {
   flex-direction: row; border-radius: 100px; height: 44px;
   justify-content: center; flex: 0 0 auto; min-width: 44px;
 }
-html[data-theme="material"][data-nav="floating"] .nav-icon-wrap { width: 24px; height: 24px; }
-html[data-theme="material"][data-nav="floating"] .nav-icon-wrap .pp-icon { font-size: 24px; }
-html[data-theme="material"][data-nav="floating"] .nav-indicator { display: none; }
-html[data-theme="material"][data-nav="floating"] .nav-label {
+html[data-nav="floating"] .nav-icon-wrap { width: 24px; height: 24px; }
+html[data-nav="floating"] .nav-icon-wrap .pp-icon { font-size: 24px; }
+html[data-nav="floating"] .nav-indicator { display: none; }
+html[data-nav="floating"] .nav-label {
   max-width: 0; opacity: 0; font-size: 14px; font-weight: 600; margin: 0;
 }
-html[data-theme="material"][data-nav="floating"] .nav-button.active {
+html[data-nav="floating"] .nav-button.active {
   background: var(--app-primary); color: var(--app-on-primary);
   flex-grow: 1.6; padding: 0 18px;
 }
-html[data-theme="material"][data-nav="floating"] .nav-button.active .nav-label {
+html[data-nav="floating"] .nav-button.active .nav-label {
   max-width: 120px; opacity: 1; margin-inline-start: 8px;
 }
-html[data-theme="material"][data-nav="floating"] .nav-button.active .material-symbols-outlined {
+html[data-nav="floating"] .nav-button.active .material-symbols-outlined {
   font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
 }
-html[data-theme="material"][data-nav="floating"] .nav-button:active { transform: scale(0.94); }
+html[data-nav="floating"] .nav-button:active { transform: scale(0.92); }
 
-/* ============================================================
-   LIQUID GLASS — port visual WeaveMask (100% Chromium-safe)
-   ============================================================ */
-#opt-glass { display: none; }
-html[data-theme="miuix"][data-nav="floating"] #opt-glass { display: flex; }
-
-.nav-glass-spec, .nav-glass-hl {
-  display: none; position: absolute; inset: 0;
-  border-radius: inherit; pointer-events: none; z-index: 3;
+/* M3E: buka-tutup label aktif pakai spring overshoot, ikon aktif membesar */
+html[data-nav="floating"] .nav-button {
+  transition: color 0.25s ease, background-color 0.25s ease,
+              flex-grow var(--dur-press) var(--ease-spring),
+              transform var(--dur-press) var(--ease-spring);
 }
-.nav-glass-hl { mix-blend-mode: screen; opacity: var(--lg-press, 0); }
-html[data-theme="miuix"][data-nav="floating"][data-glass="on"] .nav-glass-spec,
-html[data-theme="miuix"][data-nav="floating"][data-glass="on"] .nav-glass-hl { display: block; }
-
-/* BAR: surfaceContainer 40% + blur + vibrancy(saturate 1.5) */
-html[data-theme="miuix"][data-nav="floating"][data-glass="on"] .bottom-navigation {
-  background: color-mix(in srgb, var(--app-surface) 40%, transparent);
-  -webkit-backdrop-filter: blur(var(--lg-blur, 8px)) saturate(var(--lg-sat, 1.6));
-  backdrop-filter: blur(var(--lg-blur, 8px)) saturate(var(--lg-sat, 1.6));
+html[data-nav="floating"] .nav-label {
+  transition: max-width var(--dur-press) var(--ease-spring),
+              margin var(--dur-press) var(--ease-spring), opacity 0.25s ease;
 }
-
-/* BloomStroke specular */
-html[data-theme="miuix"][data-nav="floating"][data-glass="on"] .nav-glass-spec {
-  background:
-    radial-gradient(120% 85% at 50% -30%,
-      rgba(255,255,255,0.30), rgba(255,255,255,0.05) 45%, transparent 68%),
-    radial-gradient(140% 100% at 50% 88%,
-      rgba(255,255,255,0.13), transparent 58%);
-  box-shadow:
-    inset 0 0 0 1px rgba(255,255,255,0.12),
-    inset 0 0 2.5px 0.5px rgba(255,255,255,0.14),
-    inset 0 -0.5px 0.5px -0.5px rgba(255,255,255,0.10);
+html[data-nav="floating"] .nav-icon-wrap .pp-icon {
+  transition: font-size var(--dur-press) var(--ease-spring);
 }
-
-/* PILL kaca: accent 15% + surface tint + blur halus + dispersi kromatik 0.5 */
-html[data-theme="miuix"][data-nav="floating"][data-glass="on"] .nav-slider-pill {
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.01)),
-    color-mix(in srgb, var(--app-primary) 15%, transparent);
-  -webkit-backdrop-filter: blur(2px) saturate(1.35);
-  backdrop-filter: blur(2px) saturate(1.35);
-  border: 1px solid rgba(255,255,255,0.15);
-  box-shadow:
-    inset 0 1px 0.5px -0.5px rgba(255,255,255,0.40),
-    inset 1.5px 0 1.5px -1px rgba(130,180,255,0.32),
-    inset -1.5px 0 1.5px -1px rgba(255,200,150,0.28),
-    0 4px 10px rgba(0,0,0,0.18);
-}
-/* onDrawSurface: tint 0.1 memudar saat ditekan */
-html[data-theme="miuix"][data-nav="floating"][data-glass="on"] .nav-slider-pill::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit;
-  background: rgba(255,255,255,0.10);
-  opacity: calc(1 - var(--lg-press, 0));
-}
-@media (prefers-color-scheme: light) {
-  html[data-theme="miuix"][data-nav="floating"][data-glass="on"] .nav-slider-pill::before {
-    background: rgba(0,0,0,0.08);
-  }
-}
-/* InnerShadow: radius 8dp × press, black 0.15 */
-html[data-theme="miuix"][data-nav="floating"][data-glass="on"] .nav-slider-pill::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit;
-  box-shadow: inset 0 8px 16px -6px rgba(0,0,0,0.30);
-  opacity: var(--lg-press, 0);
-}
-
-/* InteractiveHighlight: radial putih mengikuti pusat pill (Plus blend) */
-html[data-theme="miuix"][data-nav="floating"][data-glass="on"] .nav-glass-hl {
-  background:
-    radial-gradient(77px at var(--lg-hl-x, 50%) 50%,
-      rgba(255,255,255,0.17), transparent 68%),
-    linear-gradient(rgba(255,255,255,0.055));
-}
-
-/* LocalFloatingBottomBarTabScale: ikon membesar 1→1.2 saat ditekan */
-html[data-theme="miuix"][data-nav="floating"][data-glass="on"] .nav-button {
-  transform: scale(var(--lg-tabs, 1));
+html[data-nav="floating"] .nav-button.active .nav-icon-wrap .pp-icon { font-size: 28px; }
+html[data-nav="floating"] .nav-button.active .material-symbols-outlined {
+  font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
 }
 
 /* === ICON BUTTON === */
@@ -822,7 +699,7 @@ html[data-theme="miuix"][data-nav="floating"][data-glass="on"] .nav-button {
 .icon-button .pp-icon { font-size: 23px; }
 
 /* ============================================================
-   DIALOGS
+   DIALOGS — M3: permukaan solid, tanpa backdrop blur
    ============================================================ */
 .dialog-scrim, .info-dialog-scrim, .sheet-scrim {
   position: fixed; inset: 0;
@@ -830,19 +707,16 @@ html[data-theme="miuix"][data-nav="floating"][data-glass="on"] .nav-button {
   opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
   display: flex; align-items: center; justify-content: center;
   z-index: 2000;
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  backdrop-filter: blur(20px) saturate(1.3);
 }
 .dialog-scrim.active, .info-dialog-scrim.active, .sheet-scrim.active { opacity: 1; pointer-events: auto; }
 
 .dialog-container {
-  background-color: var(--app-surface);
+  background-color: var(--app-surface-2);
   border-radius: var(--shape-dialog); width: 85%; max-width: 360px;
   padding: 22px; transform: translateY(16px) scale(0.96);
   transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
   box-shadow: var(--elev-float);
 }
-html[data-theme="material"] .dialog-container { background-color: var(--app-surface-2); }
 .dialog-scrim.active .dialog-container { transform: translateY(0) scale(1); }
 .dialog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
 .dialog-title { font-size: 19px; font-weight: 600; color: var(--app-on-surface); margin: 0; }
@@ -854,19 +728,13 @@ html[data-theme="material"] .dialog-container { background-color: var(--app-surf
   color: var(--app-on-surface); font-size: 15px; font-weight: 500;
   display: flex; justify-content: space-between; align-items: center;
   cursor: pointer; transition: all 0.2s ease; border: none;
+  border-radius: 100px;
 }
-html[data-theme="miuix"] .language-option { border-radius: 14px; }
-html[data-theme="miuix"] .language-option.selected {
-  background: color-mix(in srgb, var(--app-primary) 14%, transparent);
-  color: var(--app-primary);
-}
-html[data-theme="miuix"] .language-option.selected .check-icon { color: var(--app-primary); }
-html[data-theme="material"] .language-option { border-radius: 100px; }
-html[data-theme="material"] .language-option.selected {
+.language-option.selected {
   background: var(--app-secondary-container);
   color: var(--app-on-secondary-container);
 }
-html[data-theme="material"] .language-option.selected .check-icon { color: var(--app-primary); }
+.language-option.selected .check-icon { color: var(--app-primary); }
 .language-option .check-icon { display: none; font-size: 20px; }
 .language-option.selected .check-icon { display: inline-flex; }
 .language-option:active { transform: scale(0.98); }
@@ -874,49 +742,43 @@ html[data-theme="material"] .language-option.selected .check-icon { color: var(-
 /* === INFO DIALOG === */
 .info-dialog-scrim { z-index: 3000; }
 .info-dialog-container {
-  background-color: var(--app-surface);
+  background-color: var(--app-surface-2);
   border-radius: var(--shape-dialog); width: 88%; max-width: 380px;
   padding: 24px; transform: translateY(16px) scale(0.96);
   transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
   box-shadow: var(--elev-float); text-align: center;
 }
-html[data-theme="material"] .info-dialog-container { background-color: var(--app-surface-2); }
 .info-dialog-scrim.active .info-dialog-container { transform: translateY(0) scale(1); }
 .info-dialog-icon {
-  width: 56px; height: 56px; margin: 0 auto 16px auto;
+  width: 64px; height: 64px; margin: 0 auto 16px auto;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 50%;
-}
-html[data-theme="miuix"] .info-dialog-icon {
-  background: color-mix(in srgb, var(--app-primary) 12%, transparent);
-  color: var(--app-primary);
-}
-html[data-theme="material"] .info-dialog-icon {
+  border-radius: 20px 20px 4px 20px;
   background: var(--app-primary-container); color: var(--app-on-primary-container);
 }
 .info-dialog-icon .pp-icon { font-size: 28px; }
 .info-dialog-title { font-size: 21px; font-weight: 600; color: var(--app-on-surface); margin-bottom: 8px; }
 .info-dialog-desc { font-size: 14px; color: var(--app-on-surface-variant); line-height: 1.6; margin-bottom: 22px; }
 .info-dialog-btn {
-  width: 100%; height: 46px; border-radius: var(--shape-btn);
+  width: 100%; height: 48px; border-radius: var(--shape-btn);
   background-color: var(--app-primary); color: var(--app-on-primary);
   font-size: 15px; font-weight: var(--fw-btn); border: none; cursor: pointer;
-  font-family: inherit; transition: transform 0.15s ease, opacity 0.2s;
+  font-family: inherit;
+  transition: transform var(--dur-press) var(--ease-spring),
+              border-radius var(--dur-press) var(--ease-spring), opacity 0.2s ease;
 }
-.info-dialog-btn:active { opacity: 0.85; transform: scale(0.98); }
+.info-dialog-btn:active { border-radius: 10px; transform: scale(0.98); }
 
 /* === BOTTOM SHEET PICKER === */
 .sheet-scrim { z-index: 2500; align-items: flex-end; }
 .sheet-container {
   width: 100%; max-width: 500px;
-  background-color: var(--app-surface);
+  background-color: var(--app-surface-2);
   border-radius: var(--shape-sheet) var(--shape-sheet) 0 0;
   transform: translateY(100%);
   transition: transform 0.35s cubic-bezier(0.2, 0, 0, 1);
   padding: 8px 10px calc(18px + var(--window-inset-bottom, 0px));
   box-shadow: var(--elev-float);
 }
-html[data-theme="material"] .sheet-container { background-color: var(--app-surface-2); }
 .sheet-scrim.active .sheet-container { transform: translateY(0); }
 .sheet-grabber { width: 36px; height: 4px; border-radius: 4px; background: var(--app-on-surface-variant); opacity: 0.4; margin: 8px auto 12px; }
 .sheet-title { font-size: 16px; font-weight: 600; color: var(--app-on-surface); padding: 0 10px 10px; }
@@ -926,70 +788,94 @@ html[data-theme="material"] .sheet-container { background-color: var(--app-surfa
 .picker-option {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 13px 16px; color: var(--app-on-surface); font-size: 15px; cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, border-radius var(--dur-press) var(--ease-spring);
+  border-radius: 100px;
 }
-html[data-theme="miuix"] .picker-option { border-radius: 14px; }
-html[data-theme="miuix"] .picker-option.selected {
-  color: var(--app-primary); font-weight: 600;
-  background: color-mix(in srgb, var(--app-primary) 10%, transparent);
-}
-html[data-theme="material"] .picker-option { border-radius: 100px; }
-html[data-theme="material"] .picker-option.selected {
+.picker-option.selected {
   background: var(--app-secondary-container);
   color: var(--app-on-secondary-container); font-weight: 600;
 }
 .picker-option-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .picker-option .picker-check { display: none; font-size: 19px; color: var(--app-primary); }
 .picker-option.selected .picker-check { display: inline-flex; }
-.picker-option:active { background-color: color-mix(in srgb, var(--app-on-surface) 8%, transparent); }
+.picker-option:active { background-color: color-mix(in srgb, var(--app-on-surface) 8%, transparent); border-radius: 14px; }
 
 /* === DISABLED & LOADING === */
 .pp-option.disabled-by-auto,
 .pp-inline-field.disabled-by-auto { opacity: 0.45; pointer-events: none; transition: opacity 0.3s ease; }
-#loading-overlay {
-  position: fixed; inset: 0; background-color: var(--app-bg);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 9999; color: var(--app-on-surface); font-size: 16px; font-weight: 600;
-  transition: opacity 0.3s ease;
+/* Catatan: style overlay boot (#loading-overlay) kini inline di index.html —
+   agar tetap tampil benar walau stylesheet ini gagal dimuat. */
+
+/* ============================================================
+   M3E POLISH — fokus terlihat (keyboard), reduced motion
+   ============================================================ */
+.pp-btn:focus-visible,
+.pp-segment-btn:focus-visible,
+.pp-select-value:focus-visible,
+.nav-button:focus-visible,
+.icon-button:focus-visible,
+.info-dialog-btn:focus-visible,
+.language-option:focus-visible,
+.picker-option:focus-visible,
+.pp-option-clickable:focus-visible {
+  outline: 2px solid var(--app-primary); outline-offset: 2px;
+}
+.pp-switch input:focus-visible + .pp-switch-slider {
+  outline: 2px solid var(--app-primary); outline-offset: 3px;
+}
+
+/* Reduced motion: matikan spring & morph */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 /* ============================================================
    RTL
    ============================================================ */
-html[dir="rtl"] .device-info-item .value { text-align: left; }
-html[dir="rtl"] .device-info-item .label .pp-icon { margin-right: 0; margin-left: 14px; }
 html[dir="rtl"] .app-item-text { text-align: right; }
 html[dir="rtl"] .tab-header-text { text-align: right; }
 html[dir="rtl"] .pp-field-label { text-align: right; }
 html[dir="rtl"] .pp-input { text-align: right; }
 html[dir="rtl"] .pp-search input { padding: 0 48px 0 16px; }
 html[dir="rtl"] .pp-search .pp-icon { left: auto; right: 16px; }
-html[dir="rtl"][data-theme="miuix"] .pp-option + .pp-option::before,
-html[dir="rtl"][data-theme="miuix"] .pp-inline-field + .pp-option::before,
-html[dir="rtl"][data-theme="miuix"] .pp-segment-wrap + .pp-option::before,
-html[dir="rtl"][data-theme="miuix"] .pp-banner-actions + .pp-option::before,
-html[dir="rtl"][data-theme="miuix"] .app-item + .app-item::before { left: 0; right: var(--divider-inset); }
-html[dir="rtl"][data-theme="miuix"] .device-info-item + .device-info-item::before { left: 16px; right: 52px; }
+/* Bidi: teks campur (string Inggris di halaman RTL) — arah per karakter
+   pertama kuat, titik akhir tidak melompat ke awal baris */
+html[dir="rtl"] .pp-option-title,
+html[dir="rtl"] .pp-option-desc,
+html[dir="rtl"] .pp-field-label,
+html[dir="rtl"] .app-item-label,
+html[dir="rtl"] .app-item-pkg,
+html[dir="rtl"] .device-info-item .value,
+html[dir="rtl"] .list-state,
+html[dir="rtl"] .sheet-title { unicode-bidi: plaintext; }
+/* RTL device info (gaya v11 + penyesuaian): baris data nilai rata kiri;
+   identity row mirror sudut asimetris dan NAMA PERANGKAT (isi device
+   model) diletakkan DI SISI KANAN kartu. text-align fisik "right" —
+   bukan "start" — karena unicode-bidi: plaintext (nilai model
+   umumnya Latin) membuat paragraf jadi LTR. */
+html[dir="rtl"] .device-info-item .value { text-align: left; }
+html[dir="rtl"] .device-info-item.identity .label .pp-icon {
+  border-radius: 20px 20px 20px 4px;
+}
+html[dir="rtl"] .device-info-item.identity .value { text-align: right; }
 html[dir="rtl"] .pp-select-value .pp-icon { margin-left: 0; margin-right: 2px; transform: scaleX(-1); }
 html[dir="rtl"] .option-arrow { transform: scaleX(-1); }
 
-/* RTL switch — Miuix */
-html[dir="rtl"][data-theme="miuix"] .pp-switch-slider::before { left: auto; right: 2px; }
-html[dir="rtl"][data-theme="miuix"] .pp-switch input:checked + .pp-switch-slider::before { transform: translateX(-20px); }
-
-/* RTL switch — Material: anchor kanan butuh translateX(+50%), bukan -50% */
-html[dir="rtl"][data-theme="material"] .pp-switch-slider::before { left: auto; right: 6px; }
-html[dir="rtl"][data-theme="material"] .pp-switch input:checked + .pp-switch-slider::before { transform: translate(-18px, -50%); }
-html[dir="rtl"][data-theme="material"] .pp-switch-slider::after {
-  left: auto; right: 14px;
+/* RTL switch — mirror penuh geometri LTR (anchor kanan 4px,
+   checked -20px, pressed off +2px / on -18px, ikon kanan 16/36) */
+html[dir="rtl"] .pp-switch-slider::before { left: auto; right: 4px; }
+html[dir="rtl"] .pp-switch input:checked + .pp-switch-slider::before { transform: translate(-20px, -50%); }
+html[dir="rtl"] .pp-switch:active input:not(:checked) + .pp-switch-slider::before { transform: translate(2px, -50%); }
+html[dir="rtl"] .pp-switch:active input:checked + .pp-switch-slider::before { transform: translate(-18px, -50%); }
+html[dir="rtl"] .pp-switch-slider::after {
+  left: auto; right: 16px;
   transform: translate(50%, -50%);
 }
-html[dir="rtl"][data-theme="material"] .pp-switch input:checked + .pp-switch-slider::after {
+html[dir="rtl"] .pp-switch input:checked + .pp-switch-slider::after {
   left: auto; right: 36px;
   transform: translate(50%, -50%);
 }
-
-/* RTL segmented — Material */
-html[dir="rtl"][data-theme="material"] .pp-segment-btn:first-child { border-radius: 0 100px 100px 0; }
-html[dir="rtl"][data-theme="material"] .pp-segment-btn:last-child { border-radius: 100px 0 0 100px; }
-html[dir="rtl"][data-theme="material"] .pp-segment-btn + .pp-segment-btn { margin-left: 0; margin-right: -1px; }
