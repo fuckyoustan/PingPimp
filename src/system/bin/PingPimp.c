@@ -1,814 +1,1799 @@
 #define _GNU_SOURCE
+#include <ctype.h>
+#include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <glob.h>
+#include <limits.h>
+#include <net/if.h>
+#include <signal.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <dirent.h>
-#include <stdarg.h>
-#include <time.h>
-#include <errno.h>
-#include <ctype.h>
+#include <sys/ioctl.h>
+#include <sys/resource.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/resource.h>
+#include <time.h>
+#include <unistd.h>
 
-#define MODDIR        "/data/adb/modules/PingPimp"
-#define LOG_FILE      MODDIR "/log.txt"
-#define STATE_FILE    MODDIR "/NetworkState"
-#define PENDING_FILE  MODDIR "/.pending_profile"
-#define TCP_CACHE     MODDIR "/.tcp_stats_prev"
-#define LOCKDIR       MODDIR "/.engine.lock"
-#define MTU_CACHE_DIR MODDIR "/mtu_cache"
-#define GAME_LIST     MODDIR "/game_list.txt"
-#define MODULE_PROP   MODDIR "/module.prop"
+#define PP_MODDIR_DEFAULT "/data/adb/modules/PingPimp"
 
-static char g_label[64] = "system";
-static int  g_fq_limit = 1000;   /* pengganti env PP_FQ_LIMIT  */
-static int  g_fq_flows = 1024;   /* pengganti env PP_FQ_FLOWS  */
+static char g_moddir[PATH_MAX];
+static char g_logfile[PATH_MAX + 64], g_statefile[PATH_MAX + 64], g_lockdir[PATH_MAX + 64];
+static char g_gamelist[PATH_MAX + 64], g_pidfile[PATH_MAX + 64], g_modprop[PATH_MAX + 64];
+static const char *g_mode = "system";
+static char g_self[PATH_MAX];
+static const char *g_procroot; /* PP_PROC_ROOT, NULL di produksi */
 
-static int run_mode(const char *mode, const char *arg);
+/* ---------- util dasar ---------- */
 
-/* ===================== UTILITAS DASAR ===================== */
-
-static void write_log(const char *tweak, const char *status) {
-    char ts[32];
-    time_t now = time(NULL);
-    struct tm tmv;
-    localtime_r(&now, &tmv);
-    strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", &tmv);
-    FILE *f = fopen(LOG_FILE, "a");
-    if (!f) return;
-    fprintf(f, "[%s] [%s] Tweak: %s | Status: %s\n", ts, g_label, tweak, status);
-    fclose(f);
+static void pp_path(char *out, size_t n, const char *path) {
+    if (g_procroot && strncmp(path, "/proc/", 6) == 0)
+        snprintf(out, n, "%s%s", g_procroot, path);
+    else
+        snprintf(out, n, "%s", path);
 }
 
-static int write_proc(const char *path, const char *val) {
-    int fd = open(path, O_WRONLY);
-    if (fd < 0) return -1;
-    int ok = (write(fd, val, strlen(val)) >= 0) ? 0 : -1;
-    close(fd);
-    return ok;
+static char *pp_strcasestr(const char *hay, const char *needle) {
+    size_t nl = strlen(needle);
+    if (!nl) return (char *)hay;
+    for (; *hay; hay++)
+        if (strncasecmp(hay, needle, nl) == 0) return (char *)hay;
+    return NULL;
 }
 
-/* "net.ipv4.tcp_rmem" -> /proc/sys/net/ipv4/tcp_rmem */
-static int write_sysctl(const char *key, const char *val) {
-    char path[256];
-    snprintf(path, sizeof(path), "/proc/sys/%s", key);
-    for (char *p = path + 11; *p; p++)
-        if (*p == '.') *p = '/';
-    return write_proc(path, val);
+static void trim_nl(char *s) {
+    size_t n = strlen(s);
+    while (n && (s[n - 1] == '\n' || s[n - 1] == '\r')) s[--n] = 0;
 }
 
-static int write_file(const char *path, const char *val) {
-    FILE *f = fopen(path, "w");
+static void trim_ws(char *s) {
+    size_t n = strlen(s);
+    while (n && isspace((unsigned char)s[n - 1])) s[--n] = 0;
+    char *d = s;
+    while (*d && isspace((unsigned char)*d)) d++;
+    if (d != s) memmove(s, d, strlen(d) + 1);
+}
+
+static int read_first_line(const char *path, char *out, size_t n) {
+    out[0] = 0;
+    char p[PATH_MAX];
+    pp_path(p, sizeof p, path);
+    FILE *f = fopen(p, "r");
     if (!f) return -1;
-    fprintf(f, "%s\n", val);
+    if (fgets(out, (int)n, f)) trim_nl(out);
     fclose(f);
     return 0;
 }
 
-static int run_cmd(const char *fmt, ...) {
-    char cmd[2048], full[2120];
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(cmd, sizeof(cmd), fmt, ap);
-    va_end(ap);
-    snprintf(full, sizeof(full), "%s >/dev/null 2>&1", cmd);
-    int rc = system(full);
-    return (rc != -1 && WIFEXITED(rc) && WEXITSTATUS(rc) == 0) ? 0 : -1;
-}
-
-static int cmd_out(char *buf, size_t len, const char *fmt, ...) {
-    char cmd[2048];
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(cmd, sizeof(cmd), fmt, ap);
-    va_end(ap);
-    buf[0] = 0;
-    FILE *p = popen(cmd, "r");
-    if (!p) return -1;
-    size_t n = fread(buf, 1, len - 1, p);
-    buf[n] = 0;
-    pclose(p);
-    return 0;
-}
-
-static int read_first_line(const char *path, char *buf, size_t len) {
-    buf[0] = 0;
-    FILE *f = fopen(path, "r");
-    if (!f) return -1;
-    if (fgets(buf, len, f)) {
-        char *nl = strpbrk(buf, "\r\n");
-        if (nl) *nl = 0;
-    } else buf[0] = 0;
-    fclose(f);
-    return 0;
-}
-
-/* Baca file config kecil; strip \r \n spasi (setara: tr -d '\r\n ') */
-static int read_file_trim(const char *path, char *buf, size_t len) {
-    buf[0] = 0;
-    int fd = open(path, O_RDONLY);
+static int write_sysfile(const char *path, const char *val) {
+    char p[PATH_MAX];
+    pp_path(p, sizeof p, path);
+    /* padanan `echo val > path`: truncate + create bila diijinkan fs */
+    int fd = open(p, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) return -1;
-    char raw[4096];
-    ssize_t n = read(fd, raw, sizeof(raw) - 1);
+    int rc = (dprintf(fd, "%s\n", val) < 0) ? -1 : 0;
     close(fd);
-    if (n <= 0) return 0;               /* file ada tapi kosong */
-    raw[n] = 0;
-    char *w = buf;
-    for (ssize_t i = 0; i < n && (size_t)(w - buf) < len - 1; i++)
-        if (raw[i] != '\r' && raw[i] != '\n' && raw[i] != ' ') *w++ = raw[i];
-    *w = 0;
-    return 0;
+    return rc;
 }
 
-/* Baca list (isolate/boost): strip \r\n, siap split ',' */
-static int read_list(const char *path, char *buf, size_t len) {
-    buf[0] = 0;
-    int fd = open(path, O_RDONLY);
-    if (fd < 0) return -1;
-    ssize_t n = read(fd, buf, len - 1);
-    close(fd);
-    if (n <= 0) return -1;
-    buf[n] = 0;
-    char *w = buf;
-    for (ssize_t i = 0; i < n; i++)
-        if (buf[i] != '\r' && buf[i] != '\n') *w++ = buf[i];
-    *w = 0;
-    return 0;
-}
-
-/* cfg_is("tc.txt","1") — setara [ "$(tr -d '\r\n ' < f)" = "1" ] */
-static int cfg_is(const char *name, const char *val) {
-    char path[256], v[256];
-    snprintf(path, sizeof(path), MODDIR "/%s", name);
-    if (read_file_trim(path, v, sizeof(v)) != 0) return 0;
-    return !strcmp(v, val);
-}
-
-static int auto_mode_on(void) { return cfg_is("auto_mode.txt", "1"); }
-
-static void log_summary(const char *name, int ok, int total) {
-    char msg[256];
-    if (total > 0 && ok == total) {
-        write_log(name, "SUCCESS");
-    } else if (ok > 0) {
-        snprintf(msg, sizeof(msg), "%s (%d/%d applied)", name, ok, total);
-        write_log(msg, "PARTIAL");            /* shell lama: status kosong; kini eksplisit */
-    } else {
-        write_log(name, "FAILED");
-    }
-}
-
-static void log_skip(const char *fmt, ...) {
-    char msg[512];
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(msg, sizeof(msg), fmt, ap);
-    va_end(ap);
-    write_log(msg, "SKIP");
-}
-
-/* ===================== LOCK & DEBOUNCE ===================== */
-
-static int acquire_lock(void) {
-    for (int i = 0; i < 10; i++) {
-        if (mkdir(LOCKDIR, 0700) == 0) return 0;
-        sleep(1);
-    }
+/* system() dengan exit-code shell: 0 = sukses. */
+static int sh(const char *cmd) {
+    int rc = system(cmd);
+    if (rc == -1) return -1;
+    if (WIFEXITED(rc)) return WEXITSTATUS(rc) == 0 ? 0 : -1;
     return -1;
 }
 
-static void release_lock(void) { rmdir(LOCKDIR); }
+static int shf(const char *fmt, ...) {
+    char cmd[2048];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(cmd, sizeof cmd, fmt, ap);
+    va_end(ap);
+    return sh(cmd);
+}
+
+/* quoting aman untuk nilai yang diinterpolasi ke command sh. */
+static const char *shq(char *buf, size_t n, const char *s) {
+    size_t o = 0;
+    buf[o++] = '\'';
+    for (; *s && o + 4 < n; s++) {
+        if (*s == '\'') {
+            buf[o++] = '\''; buf[o++] = '\\'; buf[o++] = '\''; buf[o++] = '\'';
+        } else {
+            buf[o++] = *s;
+        }
+    }
+    buf[o++] = '\'';
+    buf[o] = 0;
+    return buf;
+}
+
+static int command_exists(const char *name) {
+    if (strchr(name, '/')) return access(name, X_OK) == 0;
+    const char *path = getenv("PATH");
+    if (!path || !path[0]) return 0;
+    char dirs[8192];
+    snprintf(dirs, sizeof dirs, "%s", path);
+    char *save = NULL;
+    for (char *d = strtok_r(dirs, ":", &save); d; d = strtok_r(NULL, ":", &save)) {
+        char full[PATH_MAX];
+        snprintf(full, sizeof full, "%s/%s", d, name);
+        if (access(full, X_OK) == 0) return 1;
+    }
+    return 0;
+}
+
+static void popen_first_line(const char *cmd, char *out, size_t n) {
+    out[0] = 0;
+    FILE *f = popen(cmd, "r");
+    if (!f) return;
+    if (fgets(out, (int)n, f)) trim_nl(out);
+    pclose(f);
+}
+
+/* token ke-n (1-based) dengan separator whitespace-run — padanan awk '{print $n}'. */
+static int ws_token(const char *line, int want, char *out, size_t n) {
+    out[0] = 0;
+    const char *c = line;
+    while (isspace((unsigned char)*c)) c++;
+    int f = 0;
+    while (*c) {
+        const char *start = c;
+        while (*c && !isspace((unsigned char)*c)) c++;
+        if (++f == want) {
+            size_t len = (size_t)(c - start);
+            if (len >= n) len = n - 1;
+            memcpy(out, start, len);
+            out[len] = 0;
+            return 1;
+        }
+        while (isspace((unsigned char)*c)) c++;
+    }
+    return 0;
+}
+
+/* field ke-n dengan delimiter per-karakter " /" — padanan awk -F'[ /]'
+ * (field kosong dihitung, termasuk yang di depan). */
+static int awk_fs_field(const char *line, int want, char *out, size_t n) {
+    out[0] = 0;
+    const char *start = line;
+    int f = 0;
+    for (const char *c = line; ; c++) {
+        if (*c == ' ' || *c == '/' || *c == '\0') {
+            f++;
+            if (f == want) {
+                size_t len = (size_t)(c - start);
+                if (len >= n) len = n - 1;
+                memcpy(out, start, len);
+                out[len] = 0;
+                return 1;
+            }
+            start = c + 1;
+            if (*c == '\0') break;
+        }
+    }
+    return 0;
+}
+
+static void init_paths(void) {
+    const char *md = getenv("PP_MODDIR");
+    if (!md || !md[0]) md = PP_MODDIR_DEFAULT;
+    snprintf(g_moddir, sizeof g_moddir, "%s", md);
+    snprintf(g_logfile, sizeof g_logfile, "%s/log.txt", g_moddir);
+    snprintf(g_statefile, sizeof g_statefile, "%s/state.json", g_moddir);
+    snprintf(g_lockdir, sizeof g_lockdir, "%s/.engine.lock", g_moddir);
+    snprintf(g_gamelist, sizeof g_gamelist, "%s/game_list.txt", g_moddir);
+    snprintf(g_pidfile, sizeof g_pidfile, "%s/daemon.pid", g_moddir);
+    snprintf(g_modprop, sizeof g_modprop, "%s/module.prop", g_moddir);
+    g_procroot = getenv("PP_PROC_ROOT");
+    ssize_t r = readlink("/proc/self/exe", g_self, sizeof g_self - 1);
+    if (r > 0) g_self[r] = 0;
+    else snprintf(g_self, sizeof g_self, "%s", "/system/bin/PingPimp");
+}
+
+/* ---------- log ---------- */
+
+static void vwrite_log(const char *tweak, const char *status) {
+    char ts[32];
+    time_t t = time(NULL);
+    struct tm tm;
+    localtime_r(&t, &tm);
+    strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S", &tm);
+    FILE *f = fopen(g_logfile, "a");
+    if (!f) return;
+    fprintf(f, "[%s] [%s] Tweak: %s | Status: %s\n", ts, g_mode, tweak, status ? status : "");
+    fclose(f);
+}
+
+static void write_log(const char *tweak, const char *status) {
+    vwrite_log(tweak, status);
+}
+
+static void write_logf(const char *tweak_fmt, const char *status, ...) {
+    char tweak[1024];
+    va_list ap;
+    va_start(ap, status);
+    vsnprintf(tweak, sizeof tweak, tweak_fmt, ap);
+    va_end(ap);
+    vwrite_log(tweak, status);
+}
+
+/* ---------- state.json: satu file flat untuk semua state/backup ----------
+ * Pretty 1 key per baris biar gampang dibaca saat debugging; ditulis atomic
+ * (tmp + rename). Nilai di-escape (\ dan "), dibaca dengan unescape.
+ */
+
+#define PP_MAX_KEYS 512
+#define PP_KEY_LEN 96
+#define PP_VAL_LEN 512
+
+static void json_unescape(char *s) {
+    /* pass 1: \" -> " ; pass 2: \\ -> \ (urutan sama dengan sed pp_get) */
+    char *w = s, *r = s;
+    while (*r) {
+        if (r[0] == '\\' && r[1] == '"') { *w++ = '"'; r += 2; }
+        else *w++ = *r++;
+    }
+    *w = 0;
+    w = s; r = s;
+    while (*r) {
+        if (r[0] == '\\' && r[1] == '\\') { *w++ = '\\'; r += 2; }
+        else *w++ = *r++;
+    }
+    *w = 0;
+}
+
+static void json_escape(const char *in, char *out, size_t n) {
+    size_t o = 0;
+    for (; *in && o + 4 < n; in++) {
+        if (*in == '\\') out[o++] = '\\', out[o++] = '\\';
+        else if (*in == '"') out[o++] = '\\', out[o++] = '"';
+        else if (*in == '\r' || *in == '\n') continue; /* tr -d '\r\n' */
+        else out[o++] = *in;
+    }
+    out[o] = 0;
+}
+
+static int state_parse(char keys[][PP_KEY_LEN], char vals[][PP_VAL_LEN]) {
+    int n = 0;
+    FILE *f = fopen(g_statefile, "r");
+    if (!f) return 0;
+    char line[PP_VAL_LEN + 128];
+    while (fgets(line, sizeof line, f)) {
+        trim_nl(line);
+        trim_ws(line);
+        if (line[0] != '"') continue;                 /* hanya baris "key": "val" */
+        char *k = line + 1;
+        char *kq = strchr(k, '"');
+        if (!kq) continue;
+        *kq = 0;
+        char *c = kq + 1;
+        if (*c != ':') continue;
+        c++;
+        while (*c == ' ' || *c == '\t') c++;
+        if (*c != '"') continue;
+        c++;
+        size_t L = strlen(c);
+        while (L && (c[L - 1] == ' ' || c[L - 1] == '\t')) c[--L] = 0;
+        if (L && c[L - 1] == ',') c[--L] = 0;
+        if (L && c[L - 1] == '"') c[--L] = 0;
+        if (n < PP_MAX_KEYS) {
+            size_t kl = strlen(k);
+            if (kl >= PP_KEY_LEN) kl = PP_KEY_LEN - 1;
+            memcpy(keys[n], k, kl);
+            keys[n][kl] = 0;
+            snprintf(vals[n], PP_VAL_LEN, "%s", c);
+            n++;
+        }
+    }
+    fclose(f);
+    return n;
+}
+
+static int state_write(char keys[][PP_KEY_LEN], char vals[][PP_VAL_LEN], int n) {
+    char tmp[PATH_MAX + 128];
+    snprintf(tmp, sizeof tmp, "%s.tmp.%d", g_statefile, (int)getpid());
+    FILE *f = fopen(tmp, "w");
+    if (!f) return -1;
+    fprintf(f, "{\n");
+    for (int i = 0; i < n; i++)
+        fprintf(f, "  \"%s\": \"%s\"%s\n", keys[i], vals[i], (i < n - 1) ? "," : "");
+    fprintf(f, "}\n");
+    fclose(f);
+    if (rename(tmp, g_statefile) != 0) {
+        unlink(tmp);
+        return -1;
+    }
+    return 0;
+}
+
+/* key -> value (return 1 jika ada); nilai sudah di-unescape. */
+static int pp_get(const char *key, char *out, size_t outsz) {
+    out[0] = 0;
+    if (access(g_statefile, F_OK) != 0) return 0;
+    char keys[PP_MAX_KEYS][PP_KEY_LEN], vals[PP_MAX_KEYS][PP_VAL_LEN];
+    int n = state_parse(keys, vals);
+    for (int i = 0; i < n; i++) {
+        if (strcmp(keys[i], key) == 0) {
+            json_unescape(vals[i]);
+            snprintf(out, outsz, "%s", vals[i]);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* update/append lalu tulis ulang JSON valid (atomic). */
+static int pp_set(const char *key, const char *val) {
+    char esc[PP_VAL_LEN];
+    json_escape(val ? val : "", esc, sizeof esc);
+    char keys[PP_MAX_KEYS][PP_KEY_LEN], vals[PP_MAX_KEYS][PP_VAL_LEN];
+    int n = 0;
+    if (access(g_statefile, F_OK) == 0) n = state_parse(keys, vals);
+    int found = 0;
+    for (int i = 0; i < n; i++) {
+        if (strcmp(keys[i], key) == 0) {
+            snprintf(vals[i], PP_VAL_LEN, "%s", esc);
+            found = 1;
+            break;
+        }
+    }
+    if (!found) {
+        if (n >= PP_MAX_KEYS) return -1;
+        snprintf(keys[n], PP_KEY_LEN, "%s", key);
+        snprintf(vals[n], PP_VAL_LEN, "%s", esc);
+        n++;
+    }
+    return state_write(keys, vals, n);
+}
+
+/* hapus key persis ATAU prefix "pat_*" (padanan pp_del shell). */
+static int pp_del(const char *pat) {
+    if (access(g_statefile, F_OK) != 0) return 0;
+    char keys[PP_MAX_KEYS][PP_KEY_LEN], vals[PP_MAX_KEYS][PP_VAL_LEN];
+    int n = state_parse(keys, vals);
+    char pref[PP_KEY_LEN + 2];
+    snprintf(pref, sizeof pref, "%s_", pat);
+    int w = 0;
+    for (int i = 0; i < n; i++) {
+        if (strcmp(keys[i], pat) == 0 || strncmp(keys[i], pref, strlen(pref)) == 0) continue;
+        if (w != i) {
+            memcpy(keys[w], keys[i], PP_KEY_LEN);
+            memcpy(vals[w], vals[i], PP_VAL_LEN);
+        }
+        w++;
+    }
+    if (w == n) return state_write(keys, vals, n); /* shell juga rewrite walau tak ada hapusan */
+    return state_write(keys, vals, w);
+}
+
+/* ---------- lock + debounce ---------- */
+
+static int acquire_lock(void) {
+    for (int tries = 0; ; ) {
+        if (mkdir(g_lockdir, 0777) == 0) return 1;
+        if (++tries >= 10) return 0;
+        sleep(1);
+    }
+}
+
+static void release_lock(void) {
+    rmdir(g_lockdir);
+}
 
 static int debounce_ok(const char *key, int min_gap) {
-    char path[256], buf[32], v[32];
-    snprintf(path, sizeof(path), MODDIR "/.debounce_%s", key);
+    char k[288], v[64];
+    snprintf(k, sizeof k, "debounce_%s", key);
+    pp_get(k, v, sizeof v);
+    long last = v[0] ? strtol(v, NULL, 10) : 0;
     long now = (long)time(NULL);
-    if (read_first_line(path, buf, sizeof(buf)) == 0 && buf[0]) {
-        long last = atol(buf);
-        if (now - last < min_gap) return 0;
-    }
-    snprintf(v, sizeof(v), "%ld", now);
-    write_file(path, v);
+    if (now - last < (long)min_gap) return 0;
+    char nv[32];
+    snprintf(nv, sizeof nv, "%ld", now);
+    pp_set(k, nv);
     return 1;
 }
 
-/* ===================== DATA PRESET ===================== */
+/* ---------- spawn latar: padanan "$0 --mode ... &" ---------- */
 
-static const char PRESET_DEFAULT[] =
-    "net.core.netdev_max_backlog 4096\n"
-    "net.core.somaxconn 4096\n"
-    "net.core.netdev_budget 4096\n"
-    "net.core.netdev_budget_usecs 8000\n"
-    "net.core.optmem_max 204800\n"
-    "net.core.rmem_default 262144\n"
-    "net.core.rmem_max 1048576\n"
-    "net.core.wmem_default 262144\n"
-    "net.core.wmem_max 1048576\n"
-    "net.ipv4.tcp_slow_start_after_idle 0\n"
-    "net.ipv4.tcp_sack 1\n"
-    "net.ipv4.tcp_window_scaling 1\n"
-    "net.ipv4.tcp_moderate_rcvbuf 1\n"
-    "net.ipv4.tcp_timestamps 1\n"
-    "net.ipv4.tcp_no_metrics_save 0\n"
-    "net.ipv4.tcp_mtu_probing 1\n"
-    "net.ipv4.tcp_rfc1337 1\n"
-    "net.ipv4.tcp_fastopen 3\n"
-    "net.ipv4.tcp_frto 2\n"
-    "net.ipv4.tcp_recovery 1\n"
-    "net.ipv4.tcp_early_retrans 1\n"
-    "net.ipv4.tcp_reordering 3\n"
-    "net.ipv4.tcp_ecn 0\n"
-    "net.ipv4.tcp_tw_reuse 1\n"
-    "net.ipv4.tcp_syn_retries 4\n"
-    "net.ipv4.tcp_synack_retries 4\n"
-    "net.ipv4.tcp_rmem 4096 87380 1048576\n"
-    "net.ipv4.tcp_wmem 4096 65536 524288\n"
-    "net.ipv4.tcp_mem 16384 32768 49152\n"
-    "net.ipv4.udp_rmem_min 16384\n"
-    "net.ipv4.udp_wmem_min 16384\n"
-    "net.ipv4.tcp_notsent_lowat 16384\n"
-    "net.ipv4.tcp_abort_on_overflow 0\n"
-    "net.ipv4.tcp_max_reordering 300\n"
-    "net.ipv4.tcp_adv_win_scale 1\n"
-    "net.ipv4.tcp_max_syn_backlog 2048\n"
-    "net.ipv4.tcp_max_tw_buckets 8192\n"
-    "net.ipv4.ip_local_port_range 1024 65535\n"
-    "net.ipv4.tcp_fin_timeout 30\n"
-    "net.ipv4.tcp_keepalive_time 600\n"
-    "net.ipv4.tcp_keepalive_intvl 30\n"
-    "net.ipv4.tcp_keepalive_probes 5\n"
-    "net.ipv4.route.flush 1\n";
+static void spawn_bg(const char *arg1, const char *arg2) {
+    pid_t pid = fork();
+    if (pid != 0) return;
+    int dn = open("/dev/null", O_RDWR);
+    if (dn >= 0) { dup2(dn, 0); dup2(dn, 1); dup2(dn, 2); if (dn > 2) close(dn); }
+    signal(SIGINT, SIG_DFL);
+    signal(SIGTERM, SIG_DFL);
+    signal(SIGCHLD, SIG_DFL);
+    if (arg2) execl(g_self, g_self, arg1, arg2, (char *)NULL);
+    else execl(g_self, g_self, arg1, (char *)NULL);
+    _exit(127);
+}
 
-static const char PRESET_GAME[] =
-    "net.core.netdev_max_backlog 1000\n"
-    "net.core.somaxconn 1024\n"
-    "net.core.netdev_budget 6000\n"
-    "net.core.netdev_budget_usecs 6000\n"
-    "net.core.optmem_max 102400\n"
-    "net.core.rmem_default 131072\n"
-    "net.core.rmem_max 524288\n"
-    "net.core.wmem_default 131072\n"
-    "net.core.wmem_max 524288\n"
-    "net.ipv4.tcp_slow_start_after_idle 0\n"
-    "net.ipv4.tcp_sack 1\n"
-    "net.ipv4.tcp_window_scaling 1\n"
-    "net.ipv4.tcp_moderate_rcvbuf 0\n"
-    "net.ipv4.tcp_timestamps 1\n"
-    "net.ipv4.tcp_no_metrics_save 0\n"
-    "net.ipv4.tcp_mtu_probing 1\n"
-    "net.ipv4.tcp_rfc1337 1\n"
-    "net.ipv4.tcp_fastopen 3\n"
-    "net.ipv4.tcp_frto 2\n"
-    "net.ipv4.tcp_recovery 1\n"
-    "net.ipv4.tcp_early_retrans 1\n"
-    "net.ipv4.tcp_reordering 5\n"
-    "net.ipv4.tcp_ecn 0\n"
-    "net.ipv4.tcp_tw_reuse 1\n"
-    "net.ipv4.tcp_syn_retries 2\n"
-    "net.ipv4.tcp_synack_retries 2\n"
-    "net.ipv4.tcp_rmem 4096 32768 131072\n"
-    "net.ipv4.tcp_wmem 4096 32768 131072\n"
-    "net.ipv4.tcp_mem 8192 16384 24576\n"
-    "net.ipv4.udp_rmem_min 32768\n"
-    "net.ipv4.udp_wmem_min 32768\n"
-    "net.ipv4.tcp_notsent_lowat 2048\n"
-    "net.ipv4.tcp_abort_on_overflow 1\n"
-    "net.ipv4.tcp_max_reordering 100\n"
-    "net.ipv4.tcp_adv_win_scale 0\n"
-    "net.ipv4.tcp_max_syn_backlog 1024\n"
-    "net.ipv4.tcp_max_tw_buckets 4096\n"
-    "net.ipv4.ip_local_port_range 1024 65535\n"
-    "net.ipv4.tcp_fin_timeout 10\n"
-    "net.ipv4.tcp_keepalive_time 300\n"
-    "net.ipv4.tcp_keepalive_intvl 10\n"
-    "net.ipv4.tcp_keepalive_probes 3\n"
-    "net.ipv4.route.flush 1\n";
+/* ---------- kategori aktivitas + app foreground ---------- */
 
-static const char PRESET_DOWNLOAD[] =
-    "net.core.netdev_max_backlog 16384\n"
-    "net.core.somaxconn 8192\n"
-    "net.core.netdev_budget 60000\n"
-    "net.core.netdev_budget_usecs 8000\n"
-    "net.core.optmem_max 409600\n"
-    "net.core.rmem_default 524288\n"
-    "net.core.rmem_max 16777216\n"
-    "net.core.wmem_default 524288\n"
-    "net.core.wmem_max 16777216\n"
-    "net.ipv4.tcp_slow_start_after_idle 0\n"
-    "net.ipv4.tcp_sack 1\n"
-    "net.ipv4.tcp_window_scaling 1\n"
-    "net.ipv4.tcp_moderate_rcvbuf 1\n"
-    "net.ipv4.tcp_timestamps 1\n"
-    "net.ipv4.tcp_no_metrics_save 0\n"
-    "net.ipv4.tcp_mtu_probing 1\n"
-    "net.ipv4.tcp_rfc1337 1\n"
-    "net.ipv4.tcp_fastopen 3\n"
-    "net.ipv4.tcp_frto 2\n"
-    "net.ipv4.tcp_recovery 1\n"
-    "net.ipv4.tcp_early_retrans 1\n"
-    "net.ipv4.tcp_reordering 3\n"
-    "net.ipv4.tcp_ecn 1\n"
-    "net.ipv4.tcp_tw_reuse 1\n"
-    "net.ipv4.tcp_syn_retries 5\n"
-    "net.ipv4.tcp_synack_retries 5\n"
-    "net.ipv4.tcp_rmem 4096 87380 16777216\n"
-    "net.ipv4.tcp_wmem 4096 65536 16777216\n"
-    "net.ipv4.tcp_mem 131072 262144 393216\n"
-    "net.ipv4.udp_rmem_min 16384\n"
-    "net.ipv4.udp_wmem_min 16384\n"
-    "net.ipv4.tcp_notsent_lowat 4294967295\n"
-    "net.ipv4.tcp_abort_on_overflow 0\n"
-    "net.ipv4.tcp_max_reordering 300\n"
-    "net.ipv4.tcp_adv_win_scale 2\n"
-    "net.ipv4.tcp_max_syn_backlog 4096\n"
-    "net.ipv4.tcp_max_tw_buckets 16384\n"
-    "net.ipv4.ip_local_port_range 1024 65535\n"
-    "net.ipv4.tcp_fin_timeout 30\n"
-    "net.ipv4.tcp_keepalive_time 1800\n"
-    "net.ipv4.tcp_keepalive_intvl 60\n"
-    "net.ipv4.tcp_keepalive_probes 9\n"
-    "net.ipv4.route.flush 1\n";
+static int classify_pkg(const char *pkg, char *out, size_t n) {
+    char p[512];
+    size_t o = 0;
+    for (; pkg[o] && o < sizeof p - 1; o++) p[o] = (char)tolower((unsigned char)pkg[o]);
+    p[o] = 0;
+    static const char *cats[][12] = {
+        {"tube", "netflix", "twitch", "disney", "hulu", "spotify", "bilibili",
+         "viu", "iqiyi", "music", NULL},
+        {"chrome", "firefox", "opera", "edge", "brave", "ucbrowser", NULL},
+        {"whatsapp", "insta", "facebook", "twitter", "tiktok", "gram",
+         "snap", "reddit", NULL},
+    };
+    static const char *names[] = {"streaming", "browsing", "social"};
+    for (int c = 0; c < 3; c++)
+        for (int i = 0; cats[c][i]; i++)
+            if (strstr(p, cats[c][i])) {
+                snprintf(out, n, "%s", names[c]);
+                return 1;
+            }
+    return 0;
+}
 
-static const char PRESET_STREAMING[] =
-    "net.core.netdev_max_backlog 8192\n"
-    "net.core.somaxconn 4096\n"
-    "net.core.netdev_budget 30000\n"
-    "net.core.netdev_budget_usecs 8000\n"
-    "net.core.optmem_max 204800\n"
-    "net.core.rmem_default 262144\n"
-    "net.core.rmem_max 8388608\n"
-    "net.core.wmem_default 262144\n"
-    "net.core.wmem_max 8388608\n"
-    "net.ipv4.tcp_slow_start_after_idle 0\n"
-    "net.ipv4.tcp_sack 1\n"
-    "net.ipv4.tcp_window_scaling 1\n"
-    "net.ipv4.tcp_moderate_rcvbuf 1\n"
-    "net.ipv4.tcp_timestamps 1\n"
-    "net.ipv4.tcp_no_metrics_save 0\n"
-    "net.ipv4.tcp_mtu_probing 1\n"
-    "net.ipv4.tcp_rfc1337 1\n"
-    "net.ipv4.tcp_fastopen 3\n"
-    "net.ipv4.tcp_frto 2\n"
-    "net.ipv4.tcp_recovery 1\n"
-    "net.ipv4.tcp_early_retrans 1\n"
-    "net.ipv4.tcp_reordering 3\n"
-    "net.ipv4.tcp_ecn 0\n"
-    "net.ipv4.tcp_tw_reuse 1\n"
-    "net.ipv4.tcp_syn_retries 3\n"
-    "net.ipv4.tcp_synack_retries 3\n"
-    "net.ipv4.tcp_rmem 4096 87380 8388608\n"
-    "net.ipv4.tcp_wmem 4096 65536 4194304\n"
-    "net.ipv4.tcp_mem 65536 131072 196608\n"
-    "net.ipv4.udp_rmem_min 32768\n"
-    "net.ipv4.udp_wmem_min 32768\n"
-    "net.ipv4.tcp_notsent_lowat 131072\n"
-    "net.ipv4.tcp_abort_on_overflow 0\n"
-    "net.ipv4.tcp_max_reordering 200\n"
-    "net.ipv4.tcp_adv_win_scale 1\n"
-    "net.ipv4.tcp_max_syn_backlog 2048\n"
-    "net.ipv4.tcp_max_tw_buckets 8192\n"
-    "net.ipv4.ip_local_port_range 1024 65535\n"
-    "net.ipv4.tcp_fin_timeout 20\n"
-    "net.ipv4.tcp_keepalive_time 1200\n"
-    "net.ipv4.tcp_keepalive_intvl 30\n"
-    "net.ipv4.tcp_keepalive_probes 5\n"
-    "net.ipv4.route.flush 1\n";
+/* cmd activity stack info | grep ',0.*=t' | awk -F'[ /]' '{print $4}' */
+static void current_fg_pkg(char *out, size_t n) {
+    out[0] = 0;
+    FILE *f = popen("cmd activity stack info 1 0 2>/dev/null", "r");
+    if (!f) return;
+    char line[1024], field[256];
+    size_t used = 0;
+    while (fgets(line, sizeof line, f)) {
+        trim_nl(line);
+        const char *c0 = strstr(line, ",0");
+        if (!c0) continue;
+        if (!strstr(c0, "=t")) continue;
+        if (awk_fs_field(line, 4, field, sizeof field) && field[0]) {
+            int len = snprintf(out + used, n - used, "%s%s", used ? "\n" : "", field);
+            if (len > 0) used += (size_t)len;
+            if (used >= n - 1) break;
+        }
+    }
+    pclose(f);
+}
 
-static const char PRESET_SOCIAL[] =
-    "net.core.netdev_max_backlog 2048\n"
-    "net.core.somaxconn 2048\n"
-    "net.core.netdev_budget 4096\n"
-    "net.core.netdev_budget_usecs 4000\n"
-    "net.core.optmem_max 204800\n"
-    "net.core.rmem_default 131072\n"
-    "net.core.rmem_max 524288\n"
-    "net.core.wmem_default 131072\n"
-    "net.core.wmem_max 524288\n"
-    "net.ipv4.tcp_slow_start_after_idle 0\n"
-    "net.ipv4.tcp_sack 1\n"
-    "net.ipv4.tcp_window_scaling 1\n"
-    "net.ipv4.tcp_moderate_rcvbuf 1\n"
-    "net.ipv4.tcp_timestamps 1\n"
-    "net.ipv4.tcp_no_metrics_save 0\n"
-    "net.ipv4.tcp_mtu_probing 1\n"
-    "net.ipv4.tcp_rfc1337 1\n"
-    "net.ipv4.tcp_fastopen 3\n"
-    "net.ipv4.tcp_frto 2\n"
-    "net.ipv4.tcp_recovery 1\n"
-    "net.ipv4.tcp_early_retrans 1\n"
-    "net.ipv4.tcp_reordering 3\n"
-    "net.ipv4.tcp_ecn 0\n"
-    "net.ipv4.tcp_tw_reuse 1\n"
-    "net.ipv4.tcp_syn_retries 3\n"
-    "net.ipv4.tcp_synack_retries 3\n"
-    "net.ipv4.tcp_rmem 4096 65536 524288\n"
-    "net.ipv4.tcp_wmem 4096 65536 262144\n"
-    "net.ipv4.tcp_mem 16384 32768 49152\n"
-    "net.ipv4.udp_rmem_min 16384\n"
-    "net.ipv4.udp_wmem_min 16384\n"
-    "net.ipv4.tcp_notsent_lowat 32768\n"
-    "net.ipv4.tcp_abort_on_overflow 0\n"
-    "net.ipv4.tcp_max_reordering 300\n"
-    "net.ipv4.tcp_adv_win_scale 1\n"
-    "net.ipv4.tcp_max_syn_backlog 1024\n"
-    "net.ipv4.tcp_max_tw_buckets 4096\n"
-    "net.ipv4.ip_local_port_range 1024 65535\n"
-    "net.ipv4.tcp_fin_timeout 15\n"
-    "net.ipv4.tcp_keepalive_time 600\n"
-    "net.ipv4.tcp_keepalive_intvl 15\n"
-    "net.ipv4.tcp_keepalive_probes 4\n"
-    "net.ipv4.route.flush 1\n";
+/* ---------- snapshot iface / route / vpn ---------- */
 
-static const char PRESET_OUTDOOR[] =
-    "net.core.netdev_max_backlog 4096\n"
-    "net.core.somaxconn 2048\n"
-    "net.core.netdev_budget 8000\n"
-    "net.core.netdev_budget_usecs 8000\n"
-    "net.core.optmem_max 102400\n"
-    "net.core.rmem_default 262144\n"
-    "net.core.rmem_max 2097152\n"
-    "net.core.wmem_default 262144\n"
-    "net.core.wmem_max 2097152\n"
-    "net.ipv4.tcp_slow_start_after_idle 1\n"
-    "net.ipv4.tcp_sack 1\n"
-    "net.ipv4.tcp_window_scaling 1\n"
-    "net.ipv4.tcp_moderate_rcvbuf 1\n"
-    "net.ipv4.tcp_timestamps 1\n"
-    "net.ipv4.tcp_no_metrics_save 0\n"
-    "net.ipv4.tcp_mtu_probing 1\n"
-    "net.ipv4.tcp_rfc1337 1\n"
-    "net.ipv4.tcp_fastopen 3\n"
-    "net.ipv4.tcp_frto 2\n"
-    "net.ipv4.tcp_recovery 1\n"
-    "net.ipv4.tcp_early_retrans 1\n"
-    "net.ipv4.tcp_reordering 10\n"
-    "net.ipv4.tcp_ecn 0\n"
-    "net.ipv4.tcp_tw_reuse 1\n"
-    "net.ipv4.tcp_syn_retries 5\n"
-    "net.ipv4.tcp_synack_retries 5\n"
-    "net.ipv4.tcp_rmem 4096 87380 2097152\n"
-    "net.ipv4.tcp_wmem 4096 65536 1048576\n"
-    "net.ipv4.tcp_mem 32768 65536 98304\n"
-    "net.ipv4.udp_rmem_min 16384\n"
-    "net.ipv4.udp_wmem_min 16384\n"
-    "net.ipv4.tcp_notsent_lowat 65536\n"
-    "net.ipv4.tcp_abort_on_overflow 0\n"
-    "net.ipv4.tcp_max_reordering 600\n"
-    "net.ipv4.tcp_adv_win_scale 1\n"
-    "net.ipv4.tcp_max_syn_backlog 2048\n"
-    "net.ipv4.tcp_max_tw_buckets 8192\n"
-    "net.ipv4.ip_local_port_range 1024 65535\n"
-    "net.ipv4.tcp_fin_timeout 30\n"
-    "net.ipv4.tcp_keepalive_time 1200\n"
-    "net.ipv4.tcp_keepalive_intvl 30\n"
-    "net.ipv4.tcp_keepalive_probes 5\n"
-    "net.ipv4.route.flush 1\n";
+static int namecmp(const void *a, const void *b) {
+    return strcmp(*(const char *const *)a, *(const char *const *)b);
+}
+
+static void iface_snapshot(char *out, size_t n) {
+    out[0] = 0;
+    static const char *fams[] = {"wlan", "rmnet", "ccmni"};
+    for (size_t fi = 0; fi < sizeof fams / sizeof fams[0]; fi++) {
+        const char *fam = fams[fi];
+        size_t fl = strlen(fam);
+        char names[64][64];
+        char *np[64];
+        int cnt = 0;
+        DIR *d = opendir("/sys/class/net");
+        if (!d) continue;
+        struct dirent *e;
+        while ((e = readdir(d)) && cnt < 64) {
+            if (strncmp(e->d_name, fam, fl) == 0 && strlen(e->d_name) < 64)
+                snprintf(names[cnt++], 64, "%s", e->d_name);
+        }
+        closedir(d);
+        for (int i = 0; i < cnt; i++) np[i] = names[i];
+        qsort(np, (size_t)cnt, sizeof np[0], namecmp);
+        for (int i = 0; i < cnt; i++) {
+            char dirp[PATH_MAX], ststr[64], s[64];
+            snprintf(dirp, sizeof dirp, "/sys/class/net/%s", np[i]);
+            struct stat st;
+            if (stat(dirp, &st) != 0 || !S_ISDIR(st.st_mode)) continue;
+            snprintf(dirp, sizeof dirp, "/sys/class/net/%s/operstate", np[i]);
+            read_first_line(dirp, s, sizeof s);
+            const char *state = (strcmp(s, "up") == 0) ? "UP" : "DOWN";
+            snprintf(ststr, sizeof ststr, " %s:%s", np[i], state);
+            strncat(out, ststr, n - strlen(out) - 1);
+        }
+    }
+}
+
+/* hanya iface yang benar-benar berubah sejak snapshot lama yang ditembak. */
+static void fire_iface_events(const char *old, const char *cur) {
+    char dup[1024];
+    snprintf(dup, sizeof dup, "%s", cur);
+    char *save = NULL;
+    for (char *tok = strtok_r(dup, " ", &save); tok; tok = strtok_r(NULL, " ", &save)) {
+        char *colon = strchr(tok, ':');
+        if (!colon) continue;
+        *colon = 0;
+        const char *ifc = tok, *st = colon + 1;
+        char needle[160];
+        snprintf(needle, sizeof needle, "%s:%s", ifc, st);
+        if (strstr(old, needle)) continue;
+        if (strcmp(st, "UP") == 0) {
+            if (debounce_ok("iface_up", 3)) {
+                spawn_bg("--engine", "INTERFACE_UP");
+                spawn_bg("--dns-flip", "INTERFACE_UP");
+            }
+        } else {
+            if (debounce_ok("iface_down", 3)) {
+                spawn_bg("--engine", "INTERFACE_DOWN");
+                spawn_bg("--dns-flip", "INTERFACE_DOWN");
+            }
+        }
+    }
+}
+
+static void route_snapshot(char *out, size_t n) {
+    popen_first_line("ip route show default 2>/dev/null", out, n);
+}
+
+static void vpn_snapshot(char *out, size_t n) {
+    out[0] = 0;
+    static const char *vpns[] = {"tun0", "wg0", "tailscale0"};
+    for (size_t i = 0; i < sizeof vpns / sizeof vpns[0]; i++) {
+        char p[PATH_MAX];
+        snprintf(p, sizeof p, "/sys/class/net/%s", vpns[i]);
+        struct stat st;
+        if (stat(p, &st) == 0 && S_ISDIR(st.st_mode)) {
+            strncat(out, " ", n - strlen(out) - 1);
+            strncat(out, vpns[i], n - strlen(out) - 1);
+        }
+    }
+}
+
+/* ---------- kesehatan jaringan ---------- */
+
+static void get_network_health(char *out, size_t n) {
+    int loss = 100;
+    long times[32];
+    int nt = 0;
+    FILE *f = popen("ping -c 4 -W 2 1.1.1.1 2>/dev/null", "r");
+    if (f) {
+        char line[1024];
+        while (fgets(line, sizeof line, f) && nt < 32) {
+            const char *pl = strstr(line, "% packet loss");
+            if (pl) {
+                const char *d = pl;
+                while (d > line && isdigit((unsigned char)d[-1])) d--;
+                loss = (int)strtol(d, NULL, 10);
+            }
+            for (const char *q = strstr(line, "time="); q; q = strstr(q + 1, "time=")) {
+                q += 5;
+                char num[32];
+                int i = 0;
+                while ((isdigit((unsigned char)q[i]) || q[i] == '.') && i < 30) {
+                    num[i] = q[i];
+                    i++;
+                }
+                num[i] = 0;
+                if (!i) continue;
+                char *dot = strchr(num, '.');
+                if (dot) *dot = 0;
+                if (num[0]) times[nt++] = strtol(num, NULL, 10);
+            }
+        }
+        pclose(f);
+    }
+    if (nt == 0) {
+        snprintf(out, n, "999:100:0");
+        return;
+    }
+    long sum = 0;
+    for (int i = 0; i < nt; i++) sum += times[i];
+    long jsum = 0;
+    int jc = 0;
+    for (int i = 1; i < nt; i++) {
+        long diff = times[i] - times[i - 1];
+        if (diff < 0) diff = -diff;
+        jsum += diff;
+        jc++;
+    }
+    long avg = sum / nt;
+    long jitter = jc > 0 ? jsum / jc : 0;
+    snprintf(out, n, "%ld:%d:%ld", avg, loss, jitter);
+}
+
+/* /proc/net/snmp: delta OutSegs/RetransSegs sejak panggilan terakhir -> "x.y" persen. */
+static void get_tcp_retransmit_rate(char *out, size_t n) {
+    out[0] = 0;
+    char p[PATH_MAX];
+    pp_path(p, sizeof p, "/proc/net/snmp");
+    FILE *f = fopen(p, "r");
+    if (!f) {
+        snprintf(out, n, "0.0");
+        return;
+    }
+    char header[1024] = "", values[2048] = "", line[2048];
+    while (fgets(line, sizeof line, f)) {
+        trim_nl(line);
+        if (strncmp(line, "Tcp:", 4) != 0) continue;
+        if (!header[0]) snprintf(header, sizeof header, "%s", line);
+        else { snprintf(values, sizeof values, "%s", line); break; }
+    }
+    fclose(f);
+    if (!header[0] || !values[0]) {
+        snprintf(out, n, "0.0");
+        return;
+    }
+    char *save = NULL;
+    char *tok = strtok_r(header, " ", &save);
+    long out_idx = -1, re_idx = -1;
+    long idx = 0;
+    while (tok) {
+        if (strcmp(tok, "OutSegs") == 0) out_idx = idx;
+        else if (strcmp(tok, "RetransSegs") == 0) re_idx = idx;
+        tok = strtok_r(NULL, " ", &save);
+        idx++;
+    }
+    if (out_idx < 0 || re_idx < 0) {
+        snprintf(out, n, "0.0");
+        return;
+    }
+    const char *vtok_out = NULL, *vtok_re = NULL;
+    save = NULL;
+    tok = strtok_r(values, " ", &save);
+    idx = 0;
+    while (tok) {
+        if (idx == out_idx) vtok_out = tok;
+        if (idx == re_idx) vtok_re = tok;
+        tok = strtok_r(NULL, " ", &save);
+        idx++;
+    }
+    if (!vtok_out || !vtok_re) {
+        snprintf(out, n, "0.0");
+        return;
+    }
+    long long out_now = atoll(vtok_out), re_now = atoll(vtok_re);
+    char po[64], pr[64];
+    pp_get("tcp_prev_out", po, sizeof po);
+    pp_get("tcp_prev_re", pr, sizeof pr);
+    long long out_prev = po[0] ? atoll(po) : 0;
+    long long re_prev = pr[0] ? atoll(pr) : 0;
+    char b[32];
+    snprintf(b, sizeof b, "%lld", out_now);
+    pp_set("tcp_prev_out", b);
+    snprintf(b, sizeof b, "%lld", re_now);
+    pp_set("tcp_prev_re", b);
+    long long d_out = out_now - out_prev;
+    long long d_re = re_now - re_prev;
+    if (d_out <= 0 || d_re < 0) {
+        snprintf(out, n, "0.0");
+        return;
+    }
+    long long pct_x10 = (d_re * 1000) / d_out;
+    snprintf(out, n, "%lld.%lld", pct_x10 / 10, pct_x10 % 10);
+}
+
+static long compute_network_score(long rtt, long loss, long jitter, const char *retrans) {
+    long ri = 0;
+    if (retrans && retrans[0]) {
+        char buf[32];
+        snprintf(buf, sizeof buf, "%s", retrans);
+        char *dot = strchr(buf, '.');
+        if (dot) *dot = 0;
+        ri = strtol(buf, NULL, 10);
+    }
+    long p_rtt = rtt / 6; if (p_rtt > 30) p_rtt = 30;
+    long p_loss = loss * 3; if (p_loss > 35) p_loss = 35;
+    long p_jitter = jitter; if (p_jitter > 15) p_jitter = 15;
+    long p_re = ri * 3; if (p_re > 20) p_re = 20;
+    long score = 100 - p_rtt - p_loss - p_jitter - p_re;
+    if (score < 0) score = 0;
+    if (score > 100) score = 100;
+    return score;
+}
+
+/* ---------- wifi info / band / network key / MTU ---------- */
+
+static void get_wifi_info(const char *iface, char *out, size_t n) {
+    char rssi[64] = "", freq[64] = "";
+    if (command_exists("iw")) {
+        char cmd[256], line[512];
+        snprintf(cmd, sizeof cmd, "iw dev %s link 2>/dev/null", iface);
+        FILE *f = popen(cmd, "r");
+        if (f) {
+            while (fgets(line, sizeof line, f)) {
+                trim_nl(line);
+                if (!rssi[0] && strstr(line, "signal:"))
+                    ws_token(line, 2, rssi, sizeof rssi);
+                if (!freq[0] && strstr(line, "freq:"))
+                    ws_token(line, 2, freq, sizeof freq);
+            }
+            pclose(f);
+        }
+    }
+    if (!rssi[0] || !freq[0]) {
+        char line[4096];
+        FILE *f = popen("dumpsys wifi 2>/dev/null", "r");
+        if (f) {
+            while (fgets(line, sizeof line, f)) {
+                trim_nl(line);
+                if (!pp_strcasestr(line, "mWifiInfo")) continue;
+                const char *r = strstr(line, "RSSI: ");
+                if (r && !rssi[0]) {
+                    r += 6;
+                    size_t i = 0;
+                    if (r[i] == '-') i++;
+                    while (isdigit((unsigned char)r[i]) && i < sizeof rssi - 1) i++;
+                    snprintf(rssi, sizeof rssi, "%.*s", (int)i, r);
+                }
+                const char *fr = strstr(line, "Frequency: ");
+                if (fr && !freq[0]) {
+                    fr += 11;
+                    size_t i = 0;
+                    while (isdigit((unsigned char)fr[i]) && i < sizeof freq - 1) i++;
+                    snprintf(freq, sizeof freq, "%.*s", (int)i, fr);
+                }
+                break;
+            }
+            pclose(f);
+        }
+    }
+    snprintf(out, n, "%s:%s", rssi[0] ? rssi : "0", freq[0] ? freq : "0");
+}
+
+static const char *classify_band(const char *freq) {
+    if (!freq || !freq[0]) return "UNKNOWN";
+    for (const char *c = freq; *c; c++)
+        if (!isdigit((unsigned char)*c)) return "UNKNOWN";
+    long f = strtol(freq, NULL, 10);
+    if (f >= 5925) return "6GHZ";
+    if (f >= 4900) return "5GHZ";
+    if (f >= 2400) return "24GHZ";
+    return "UNKNOWN";
+}
+
+static void route_iface(char *out, size_t n) {
+    char line[512];
+    popen_first_line("ip route get 1.1.1.1 2>/dev/null", line, sizeof line);
+    if (!ws_token(line, 5, out, n)) out[0] = 0;
+}
+
+static void network_key(const char *iface, char *out, size_t n) {
+    char gw[128] = "";
+    FILE *f = popen("ip route get 1.1.1.1 2>/dev/null", "r");
+    if (f) {
+        char line[512], tok[128], next[128];
+        while (fgets(line, sizeof line, f)) {
+            trim_nl(line);
+            for (int i = 1; ws_token(line, i, tok, sizeof tok); i++) {
+                if (strcmp(tok, "via") != 0) continue;
+                if (ws_token(line, i + 1, next, sizeof next)) {
+                    snprintf(gw, sizeof gw, "%s", next);
+                    break;
+                }
+            }
+            if (gw[0]) break;
+        }
+        pclose(f);
+    }
+    if (!gw[0]) snprintf(gw, sizeof gw, "direct");
+    char clean[128];
+    size_t o = 0;
+    for (const char *c = gw; *c && o < sizeof clean - 1; c++)
+        clean[o++] = (*c == '.' || *c == ':') ? '_' : *c;
+    clean[o] = 0;
+    snprintf(out, n, "%s_%s", iface, clean);
+}
+
+static int route_has_vpn(void) {
+    FILE *f = popen("ip link show 2>/dev/null", "r");
+    if (!f) return 0;
+    char line[512];
+    int vpn = 0;
+    while (fgets(line, sizeof line, f)) {
+        const char *c = line;
+        while (isdigit((unsigned char)*c)) c++;
+        if (c == line) continue;
+        if (*c == ':' && c[1] == ' ') {
+            const char *name = c + 2;
+            if (strncmp(name, "tun0", 4) == 0 || strncmp(name, "wg0", 3) == 0 ||
+                strncmp(name, "tailscale", 9) == 0) {
+                vpn = 1;
+                break;
+            }
+        }
+    }
+    pclose(f);
+    return vpn;
+}
+
+static long probe_mtu(const char *iface) {
+    char key[256], ck[300], cached[32];
+    network_key(iface, key, sizeof key);
+    snprintf(ck, sizeof ck, "mtu_cache_%s", key);
+    if (pp_get(ck, cached, sizeof cached) && cached[0])
+        return strtol(cached, NULL, 10);
+    if (route_has_vpn()) {
+        pp_set(ck, "1420");
+        return 1420;
+    }
+    if (sh("ping -M do -c 1 -W 1 -s 1400 1.1.1.1 >/dev/null 2>&1") != 0) {
+        long mtu = (strncmp(iface, "wlan", 4) == 0) ? 1492 : 1440;
+        char b[32];
+        snprintf(b, sizeof b, "%ld", mtu);
+        pp_set(ck, b);
+        return mtu;
+    }
+    long lo = 1200, hi = 1472, best = 1400;
+    while (lo <= hi) {
+        long mid = (lo + hi) / 2;
+        char cmd[128];
+        snprintf(cmd, sizeof cmd,
+                 "ping -M do -c 1 -W 1 -s %ld 1.1.1.1 >/dev/null 2>&1", mid);
+        if (sh(cmd) == 0) { best = mid; lo = mid + 1; }
+        else hi = mid - 1;
+    }
+    long mtu = best + 28;
+    char b[32];
+    snprintf(b, sizeof b, "%ld", mtu);
+    pp_set(ck, b);
+    write_logf("Adaptive MTU probe on %s -> %ld (key: %s)", "SUCCESS", iface, mtu, key);
+    return mtu;
+}
 
 static void set_default_qdisc(void) {
-    if (access("/proc/sys/net/core/default_qdisc", F_OK) != 0) return;
-    const char *qs[] = {"fq", "fq_codel", "pfifo_fast"};
-    char msg[96];
-    for (int i = 0; i < 3; i++) {
-        if (write_proc("/proc/sys/net/core/default_qdisc", qs[i]) == 0) {
-            snprintf(msg, sizeof(msg), "Default qdisc set to %s", qs[i]);
-            write_log(msg, "SUCCESS");
+    char p[PATH_MAX];
+    pp_path(p, sizeof p, "/proc/sys/net/core/default_qdisc");
+    if (access(p, F_OK) != 0) return;
+    static const char *qs[] = {"fq", "fq_codel", "pfifo_fast"};
+    for (size_t i = 0; i < sizeof qs / sizeof qs[0]; i++) {
+        if (write_sysfile("/proc/sys/net/core/default_qdisc", qs[i]) == 0) {
+            write_logf("Default qdisc set to %s", "SUCCESS", qs[i]);
             return;
         }
     }
     write_log("Default qdisc locked by kernel, keeping current", "SKIP");
 }
 
-static void apply_preset(const char *name, const char *data, int wifi_low_latency) {
-    char buf[16384];
-    snprintf(buf, sizeof(buf), "%s", data);
-    int total = 0, ok = 0;
-    char *save = NULL;
-    for (char *line = strtok_r(buf, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
-        char *sp = strchr(line, ' ');
-        if (!sp) continue;
-        *sp = 0;
-        total++;
-        if (write_sysctl(line, sp + 1) == 0) ok++;
-        else log_skip("  -> not applied: %s = %s", line, sp + 1);
-    }
-    /* cmd wifi ... || true : selalu dianggap sukses */
-    run_cmd("cmd wifi force-low-latency-mode %s", wifi_low_latency ? "enabled" : "disabled");
-    set_default_qdisc();
-    log_summary(name, ok, total);
+/* ---------- MTU / txqueuelen native (SIOCSIFMTU / SIOCSIFTXQLEN) ---------- */
+
+static int set_link_val(const char *ifname, unsigned long req, int val) {
+    int s = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0) return -1;
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof ifr);
+    snprintf(ifr.ifr_name, IFNAMSIZ, "%s", ifname);
+    ifr.ifr_ifru.ifru_ivalue = val;
+    int rc = ioctl(s, (unsigned long)req, &ifr);
+    close(s);
+    return rc == 0 ? 0 : -1;
 }
 
-static void apply_cmds(const char *name, const char *const *cmds, int n) {
-    int ok = 0;
-    for (int i = 0; i < n; i++) {
-        if (run_cmd("%s", cmds[i]) == 0) ok++;
-        else log_skip("  -> not applied: %s", cmds[i]);
-    }
-    log_summary(name, ok, n);
+static void set_mtu(const char *ifname, int mtu) {
+    set_link_val(ifname, SIOCSIFMTU, mtu);
 }
 
-/* ===================== NETWORK HEALTH ===================== */
-
-static void get_active_iface(char *iface, size_t len) {
-    iface[0] = 0;
-    char out[1024];
-    cmd_out(out, sizeof(out), "ip route get 1.1.1.1 2>/dev/null");
-    char *save = NULL;
-    char *tok = strtok_r(out, " \t\r\n", &save);
-    for (int i = 1; tok && i < 5; i++)
-        tok = strtok_r(NULL, " \t\r\n", &save);
-    if (tok) snprintf(iface, len, "%s", tok);
+static void set_txqueuelen(const char *ifname, int len) {
+    set_link_val(ifname, SIOCSIFTXQLEN, len);
 }
 
-static void get_network_health(int *rtt, int *loss, int *jit) {
-    *rtt = 999; *loss = 100; *jit = 0;
-    char out[4096];
-    if (cmd_out(out, sizeof(out), "ping -c 4 -W 2 1.1.1.1") != 0 || !out[0]) return;
-
-    char *pl = strstr(out, "% packet loss");
-    if (pl) {
-        char *d = pl;
-        while (d > out && isdigit((unsigned char)*(d - 1))) d--;
-        *loss = atoi(d);
+static void clear_wlan_promisc_allmulti(const char *ifname) {
+    int s = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0) return;
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof ifr);
+    snprintf(ifr.ifr_name, IFNAMSIZ, "%s", ifname);
+    if (ioctl(s, SIOCGIFFLAGS, &ifr) == 0) {
+        ifr.ifr_flags &= (short)~(IFF_PROMISC | IFF_ALLMULTI);
+        ioctl(s, SIOCSIFFLAGS, &ifr);
     }
-    int sum = 0, cnt = 0, prev = -1, jsum = 0, jcnt = 0;
-    for (char *p = strstr(out, "time="); p; p = strstr(p + 5, "time=")) {
-        int t = atoi(p + 5);
-        sum += t; cnt++;
-        if (prev >= 0) { int d = t - prev; if (d < 0) d = -d; jsum += d; jcnt++; }
-        prev = t;
-    }
-    if (cnt == 0) { *rtt = 999; *loss = 100; *jit = 0; return; }
-    *rtt = sum / cnt;
-    if (jcnt > 0) *jit = jsum / jcnt;
+    close(s);
 }
 
-static double get_tcp_retransmit_rate(void) {
-    FILE *f = fopen("/proc/net/snmp", "r");
-    if (!f) return 0.0;
-    char line[8192], hdr[8192] = "", val[8192] = "";
-    int found = 0;
-    while (fgets(line, sizeof(line), f)) {
-        if (strncmp(line, "Tcp:", 4) != 0) continue;
-        if (!found) { snprintf(hdr, sizeof(hdr), "%s", line); found = 1; }
-        else { snprintf(val, sizeof(val), "%s", line); break; }
-    }
-    fclose(f);
-    if (!hdr[0] || !val[0]) return 0.0;
 
-    int out_idx = -1, re_idx = -1, idx = 0;
-    char *save = NULL;
-    strtok_r(hdr, " \t\r\n", &save);                     /* "Tcp:" */
-    for (char *tok = strtok_r(NULL, " \t\r\n", &save); tok; tok = strtok_r(NULL, " \t\r\n", &save)) {
-        if (!strcmp(tok, "OutSegs")) out_idx = idx;
-        else if (!strcmp(tok, "RetransSegs")) re_idx = idx;
-        idx++;
-    }
-    if (out_idx < 0 || re_idx < 0) return 0.0;
+/* ---------- Smart Auto DNS: Private DNS per tipe jaringan ----------
+ * Prioritas: SSID override -> DNS WiFi/Data (WebUI) -> dns_manual
+ * (opsi Network Tweak) -> DNS sistem. TANPA fallback Google DNS.
+ * Hanya aktif saat Smart Auto Mode menyala.
+ */
 
-    long out_now = 0, re_now = 0;
-    int i2 = 0;
-    save = NULL;
-    strtok_r(val, " \t\r\n", &save);
-    for (char *tok = strtok_r(NULL, " \t\r\n", &save); tok; tok = strtok_r(NULL, " \t\r\n", &save)) {
-        if (i2 == out_idx) out_now = atol(tok);
-        else if (i2 == re_idx) re_now = atol(tok);
-        i2++;
-    }
-
-    long out_prev = 0, re_prev = 0;
-    char c[64];
-    FILE *cf = fopen(TCP_CACHE, "r");
-    if (cf) {
-        if (fgets(c, sizeof(c), cf)) out_prev = atol(c);
-        if (fgets(c, sizeof(c), cf)) re_prev = atol(c);
-        fclose(cf);
-    }
-    cf = fopen(TCP_CACHE, "w");
-    if (cf) { fprintf(cf, "%ld\n%ld\n", out_now, re_now); fclose(cf); }
-
-    long d_out = out_now - out_prev, d_re = re_now - re_prev;
-    if (d_out <= 0 || d_re < 0) return 0.0;
-    long pct_x10 = d_re * 1000 / d_out;
-    return (pct_x10 / 10) + (pct_x10 % 10) / 10.0;
+static void get_current_dns_mode(char *out, size_t n) {
+    popen_first_line("settings get global private_dns_mode 2>/dev/null", out, n);
+    if (!out[0] || strcmp(out, "null") == 0) snprintf(out, n, "off");
 }
 
-static int compute_network_score(int rtt, int loss, int jitter, double retrans) {
-    int ri = (int)retrans;
-    int p_rtt = rtt / 6;    if (p_rtt > 30) p_rtt = 30;
-    int p_loss = loss * 3;  if (p_loss > 35) p_loss = 35;
-    int p_jit = jitter;     if (p_jit > 15) p_jit = 15;
-    int p_re = ri * 3;      if (p_re > 20) p_re = 20;
-    int score = 100 - p_rtt - p_loss - p_jit - p_re;
-    if (score < 0) score = 0;
-    if (score > 100) score = 100;
-    return score;
+static void get_current_dns_spec(char *out, size_t n) {
+    popen_first_line("settings get global private_dns_specifier 2>/dev/null", out, n);
+    if (!out[0] || strcmp(out, "null") == 0) snprintf(out, n, "none");
 }
 
-/* ===================== WIFI / MTU ===================== */
-
-static void get_wifi_info(const char *iface, int *rssi, int *freq) {
-    *rssi = 0; *freq = 0;
-    char out[4096];
-    if (run_cmd("command -v iw") == 0) {
-        cmd_out(out, sizeof(out), "iw dev %s link", iface);
-        char *s = strstr(out, "signal:");
-        if (s) *rssi = atoi(s + 7);
-        char *fr = strstr(out, "freq:");
-        if (fr) *freq = atoi(fr + 5);
-    }
-    if (*rssi == 0 || *freq == 0) {
-        cmd_out(out, sizeof(out), "dumpsys wifi 2>/dev/null | grep -im1 mWifiInfo");
-        char *s = strstr(out, "RSSI: ");
-        if (s && *rssi == 0) *rssi = atoi(s + 6);
-        char *fr = strstr(out, "Frequency: ");
-        if (fr && *freq == 0) *freq = atoi(fr + 11);
-    }
-}
-
-static const char *classify_band(int freq) {
-    if (freq >= 5925) return "6GHZ";
-    if (freq >= 4900) return "5GHZ";
-    if (freq >= 2400) return "24GHZ";
-    return "UNKNOWN";
-}
-
-static void network_key(const char *iface, char *out, size_t len) {
-    char rt[1024], gw[80] = "direct";
-    cmd_out(rt, sizeof(rt), "ip route get 1.1.1.1 2>/dev/null");
-    char *via = strstr(rt, " via ");
-    if (via) sscanf(via + 5, "%79s", gw);
-    for (char *p = gw; *p; p++)
-        if (*p == '.' || *p == ':') *p = '_';
-    snprintf(out, len, "%s_%s", iface, gw);
-}
-
-static int probe_mtu(const char *iface) {
-    char key[160], cache_path[300], buf[32];
-    network_key(iface, key, sizeof(key));
-    snprintf(cache_path, sizeof(cache_path), "%s/%s", MTU_CACHE_DIR, key);
-    if (read_first_line(cache_path, buf, sizeof(buf)) == 0 && buf[0])
-        return atoi(buf);
-
-    char link[8192];
-    cmd_out(link, sizeof(link), "ip link show");
-    if (strstr(link, ": tun0") || strstr(link, ": wg0") || strstr(link, ": tailscale")) {
-        write_file(cache_path, "1420");
-        return 1420;
-    }
-    if (run_cmd("ping -M do -c 1 -W 1 -s 1400 1.1.1.1") != 0) {
-        int m = strncmp(iface, "wlan", 4) == 0 ? 1492 : 1440;
-        char v[16]; snprintf(v, sizeof(v), "%d", m);
-        write_file(cache_path, v);
-        return m;
-    }
-    int lo = 1200, hi = 1472, best = 1400;
-    while (lo <= hi) {
-        int mid = (lo + hi) / 2;
-        if (run_cmd("ping -M do -c 1 -W 1 -s %d 1.1.1.1", mid) == 0) { best = mid; lo = mid + 1; }
-        else hi = mid - 1;
-    }
-    int mtu = best + 28;
-    char v[16]; snprintf(v, sizeof(v), "%d", mtu);
-    write_file(cache_path, v);
-    { char msg[300]; snprintf(msg, sizeof(msg), "Adaptive MTU probe on %s -> %d (key: %s)", iface, mtu, key); write_log(msg, "SUCCESS"); }
-    return mtu;
-}
-
-/* ===================== SMART AUTO DNS ===================== */
-
-static void get_settings(const char *key, char *out, size_t len, const char *dflt) {
-    cmd_out(out, len, "settings get global %s", key);
-    for (char *p = out; *p; p++)
-        if (*p == '\r' || *p == '\n') { *p = 0; break; }
-    if (!out[0] || !strcmp(out, "null")) snprintf(out, len, "%s", dflt);
-}
-
-static int get_wifi_ssid(char *ssid, size_t len) {
-    ssid[0] = 0;
-    char out[8192];
-    cmd_out(out, sizeof(out), "dumpsys wifi 2>/dev/null | grep -im1 mWifiInfo | grep -o 'SSID: \"[^\"]*\"'");
-    if (!out[0])
-        cmd_out(out, sizeof(out), "dumpsys wifi 2>/dev/null | grep -o 'SSID: \"[^\"]*\"' | head -n 1");
-    if (!out[0]) return -1;
-    char *q1 = strchr(out, '"');
-    if (!q1) return -1;
-    char *q2 = strchr(q1 + 1, '"');
-    if (!q2) return -1;
-    *q2 = 0;
-    snprintf(ssid, len, "%s", q1 + 1);
-    if (!ssid[0] || !strcmp(ssid, "<unknown ssid>") || !strcmp(ssid, "<unknown>") ||
-        !strcmp(ssid, "<hidden>") || !strcmp(ssid, "0x") || !strcmp(ssid, "0x0"))
-        return -1;
-    return 0;
-}
-
-static void detect_network_type(char *out, size_t len) {
-    char iface[64], buf[8192];
-    get_active_iface(iface, sizeof(iface));
-    if (!strncmp(iface, "wlan", 4) || !strncmp(iface, "eth", 3)) { snprintf(out, len, "wifi"); return; }
-    if (!strncmp(iface, "rmnet", 5) || !strncmp(iface, "ccmni", 5) ||
-        !strncmp(iface, "radio", 5) || !strncmp(iface, "pdp", 3)) { snprintf(out, len, "mobile"); return; }
-    char ssid[128];
-    if (get_wifi_ssid(ssid, sizeof(ssid)) == 0) { snprintf(out, len, "wifi"); return; }
-    if (cmd_out(buf, sizeof(buf), "dumpsys connectivity 2>/dev/null | grep 'MOBILE.*CONNECTED'") == 0 && buf[0]) {
-        snprintf(out, len, "mobile"); return;
-    }
-    snprintf(out, len, "unknown");
-}
-
-static void read_dns_config(const char *file, char *out, size_t len) {
-    char path[256], v[256];
-    snprintf(path, sizeof(path), MODDIR "/%s", file);
-    v[0] = 0;
-    read_file_trim(path, v, sizeof(v));
-    if (!v[0] || !strcmp(v, "null") || !strcmp(v, "none"))
-        snprintf(out, len, "dns.google");
-    else
-        snprintf(out, len, "%s", v);
-}
-
-static int get_ssid_dns(const char *ssid, char *out, size_t len) {
+static int get_wifi_ssid(char *out, size_t n) {
     out[0] = 0;
-    if (!ssid || !ssid[0]) return -1;
-    FILE *f = fopen(MODDIR "/dns_ssid_map.txt", "r");
-    if (!f) return -1;
-    char line[512];
-    while (fgets(line, sizeof(line), f)) {
-        char *nl = strpbrk(line, "\r\n"); if (nl) *nl = 0;
+    FILE *f = popen("dumpsys wifi 2>/dev/null", "r");
+    if (!f) return 0;
+    char line[4096], mline[4096] = "", sline[4096] = "";
+    while (fgets(line, sizeof line, f)) {
+        trim_nl(line);
+        if (!mline[0] && pp_strcasestr(line, "mWifiInfo"))
+            snprintf(mline, sizeof mline, "%s", line);
+        if (!sline[0] && strstr(line, "SSID: \""))
+            snprintf(sline, sizeof sline, "%s", line);
+    }
+    pclose(f);
+    const char *src = NULL;
+    if (mline[0]) src = strstr(mline, "SSID: \"");
+    if (!src && sline[0]) src = strstr(sline, "SSID: \"");
+    char raw[512] = "";
+    if (src) {
+        src += 7;
+        const char *e = strchr(src, '"');
+        if (e && (size_t)(e - src) < sizeof raw) {
+            memcpy(raw, src, (size_t)(e - src));
+            raw[e - src] = 0;
+        }
+    }
+    if (!raw[0]) return 0;
+    if (strcmp(raw, "<unknown ssid>") == 0 || strcmp(raw, "<unknown>") == 0 ||
+        strcmp(raw, "<hidden>") == 0 || strcmp(raw, "0x") == 0 ||
+        strcmp(raw, "0x0") == 0)
+        return 0;
+    snprintf(out, n, "%s", raw);
+    return 1;
+}
+
+static void detect_network_type(char *out, size_t n) {
+    char ifc[64];
+    route_iface(ifc, sizeof ifc);
+    if (strncmp(ifc, "wlan", 4) == 0 || strncmp(ifc, "eth", 3) == 0) {
+        snprintf(out, n, "wifi");
+        return;
+    }
+    if (strncmp(ifc, "rmnet", 5) == 0 || strncmp(ifc, "ccmni", 5) == 0 ||
+        strncmp(ifc, "radio", 5) == 0 || strncmp(ifc, "pdp", 3) == 0) {
+        snprintf(out, n, "mobile");
+        return;
+    }
+    /* fallback (mis. trafik lewat VPN/tun) */
+    char ssid[256];
+    if (get_wifi_ssid(ssid, sizeof ssid)) {
+        snprintf(out, n, "wifi");
+        return;
+    }
+    FILE *f = popen("dumpsys connectivity 2>/dev/null", "r");
+    if (f) {
+        char line[4096];
+        while (fgets(line, sizeof line, f)) {
+            const char *m = strstr(line, "MOBILE");
+            if (m && strstr(m, "CONNECTED")) {
+                snprintf(out, n, "mobile");
+                pclose(f);
+                return;
+            }
+        }
+        pclose(f);
+    }
+    snprintf(out, n, "unknown");
+}
+
+static void get_dns_cfg(const char *key, char *out, size_t n) {
+    pp_get(key, out, n);
+    if (!out[0] || strcmp(out, "null") == 0 || strcmp(out, "none") == 0 ||
+        strcmp(out, "default") == 0)
+        out[0] = 0;
+}
+
+static int get_ssid_dns(const char *ssid, char *out, size_t n) {
+    out[0] = 0;
+    if (!ssid || !ssid[0]) return 0;
+    char f[PATH_MAX + 128];
+    snprintf(f, sizeof f, "%s/dns_ssid_map.txt", g_moddir);
+    FILE *fp = fopen(f, "r");
+    if (!fp) return 0;
+    char line[1024];
+    while (fgets(line, sizeof line, fp)) {
+        trim_nl(line);
         if (!line[0] || line[0] == '#') continue;
         char *eq = strchr(line, '=');
         if (!eq) continue;
         *eq = 0;
-        if (!strcmp(line, ssid) && eq[1]) {
-            snprintf(out, len, "%s", eq + 1);
-            fclose(f);
-            return 0;
+        const char *val = eq + 1;
+        if (strcmp(line, ssid) == 0 && val[0]) {
+            snprintf(out, n, "%s", val);
+            fclose(fp);
+            return 1;
         }
     }
-    fclose(f);
-    return -1;
+    fclose(fp);
+    return 0;
 }
 
 static void apply_private_dns(const char *target, const char *net_type, const char *event) {
-    char mode[64], spec[300];
-    get_settings("private_dns_mode", mode, sizeof(mode), "off");
-    get_settings("private_dns_specifier", spec, sizeof(spec), "none");
+    char mode[64], spec[256];
+    get_current_dns_mode(mode, sizeof mode);
+    get_current_dns_spec(spec, sizeof spec);
 
-    if (!strcmp(target, "default")) {
-        if (!strcmp(mode, "off") || !strcmp(mode, "opportunistic")) return;
-        run_cmd("settings delete global private_dns_mode");
-        run_cmd("settings delete global private_dns_specifier");
-        char msg[512];
-        snprintf(msg, sizeof(msg), "Auto DNS [%s/%s]: %s/%s -> System Default", event, net_type, mode, spec);
-        write_log(msg, "SUCCESS");
+    if (strcmp(target, "default") == 0) {
+        if (strcmp(mode, "off") == 0 || strcmp(mode, "opportunistic") == 0) return;
+        sh("settings delete global private_dns_mode 2>/dev/null");
+        sh("settings delete global private_dns_specifier 2>/dev/null");
+        write_logf("Auto DNS [%s/%s]: %s/%s -> System Default", "SUCCESS",
+                   event, net_type, mode, spec);
     } else {
-        if (!strcmp(mode, "hostname") && !strcmp(spec, target)) return;
-        run_cmd("settings put global private_dns_mode hostname");
-        run_cmd("settings put global private_dns_specifier %s", target);
-        char msg[512];
-        snprintf(msg, sizeof(msg), "Auto DNS [%s/%s]: %s/%s -> %s", event, net_type, mode, spec, target);
-        write_log(msg, "SUCCESS");
+        /* idempoten: skip jika sudah sama (anti spam settings put tiap 10 detik) */
+        if (strcmp(mode, "hostname") == 0 && strcmp(spec, target) == 0) return;
+        sh("settings put global private_dns_mode hostname 2>/dev/null");
+        char q[600], cmd[900];
+        shq(q, sizeof q, target);
+        snprintf(cmd, sizeof cmd, "settings put global private_dns_specifier %s 2>/dev/null", q);
+        sh(cmd);
+        write_logf("Auto DNS [%s/%s]: %s/%s -> %s", "SUCCESS",
+                   event, net_type, mode, spec, target);
     }
 }
 
 static void run_dns_flip(const char *event) {
-    if (!auto_mode_on()) return;
-    if (!strncmp(event, "INTERFACE_", 10) || !strncmp(event, "ROUTE_", 6) ||
-        !strncmp(event, "VPN_", 4) || !strcmp(event, "AUTO_ON") || !strcmp(event, "BOOT"))
+    char am[8];
+    pp_get("auto_mode", am, sizeof am);
+    if (strcmp(am, "1") != 0) return;
+
+    /* jeda agar status link/route settle setelah event */
+    if (strncmp(event, "INTERFACE_", 10) == 0 || strncmp(event, "ROUTE_", 6) == 0 ||
+        strncmp(event, "VPN_", 4) == 0 || strcmp(event, "AUTO_ON") == 0 ||
+        strcmp(event, "BOOT") == 0)
         sleep(3);
 
-    char net_type[16];
-    detect_network_type(net_type, sizeof(net_type));
-    if (!strcmp(net_type, "unknown")) return;
+    char net_type[16], target[256] = "";
+    detect_network_type(net_type, sizeof net_type);
+    if (strcmp(net_type, "unknown") == 0) return;
 
-    char target[256] = "";
-    if (!strcmp(net_type, "wifi")) {
-        char ssid[128];
-        if (get_wifi_ssid(ssid, sizeof(ssid)) == 0)
-            get_ssid_dns(ssid, target, sizeof(target));
-        if (!target[0]) read_dns_config("dns_wifi.txt", target, sizeof(target));
-    } else if (!strcmp(net_type, "mobile")) {
-        read_dns_config("dns_mobile.txt", target, sizeof(target));
-    } else return;
+    if (strcmp(net_type, "wifi") == 0) {
+        char ssid[256];
+        if (get_wifi_ssid(ssid, sizeof ssid))
+            get_ssid_dns(ssid, target, sizeof target);          /* 1. override per-SSID */
+        if (!target[0])
+            get_dns_cfg("dns_wifi", target, sizeof target);     /* 2. DNS WiFi WebUI */
+    } else if (strcmp(net_type, "mobile") == 0) {
+        get_dns_cfg("dns_mobile", target, sizeof target);       /* 3. DNS data seluler */
+    } else {
+        return;
+    }
 
-    if (!target[0]) snprintf(target, sizeof(target), "dns.google");
+    if (!target[0] || strcmp(target, "default") == 0)
+        get_dns_cfg("dns_manual", target, sizeof target);       /* 4. ops Network Tweak */
+
+    if (!target[0]) snprintf(target, sizeof target, "default"); /* 5. DNS sistem */
+
     apply_private_dns(target, net_type, event);
 }
 
-/* ===================== TOGGLE & TWEAK ===================== */
+/* ---------- module.prop status + TCP + game scanner ---------- */
 
-static int if_interesting(const char *n) {
-    return !strncmp(n, "wlan", 4) || !strncmp(n, "eth", 3) || !strncmp(n, "rmnet", 5) ||
-           !strncmp(n, "ccmni", 5) || !strncmp(n, "radio", 5);
+static int any_proc_cmdline_has(const char *needle) {
+    DIR *d = opendir("/proc");
+    if (!d) return 0;
+    struct dirent *e;
+    char path[320], buf[4096];
+    while ((e = readdir(d))) {
+        if (!isdigit((unsigned char)e->d_name[0])) continue;
+        snprintf(path, sizeof path, "/proc/%s/cmdline", e->d_name);
+        int fd = open(path, O_RDONLY);
+        if (fd < 0) continue;
+        ssize_t r = read(fd, buf, sizeof buf - 1);
+        close(fd);
+        if (r <= 0) continue;
+        buf[r] = 0;
+        for (ssize_t i = 0; i < r; i++)
+            if (buf[i] == 0) buf[i] = ' ';
+        if (strstr(buf, needle)) {
+            closedir(d);
+            return 1;
+        }
+    }
+    closedir(d);
+    return 0;
 }
 
-static void cmd_nic(int offload_off) {
-    if (run_cmd("command -v ethtool") != 0) {
+static void module_description(void) {
+    const char *repl = any_proc_cmdline_has("PingPimp")
+                           ? "description=[ 😋 WORKING ] "
+                           : "description=[  ⚠️ NOT WORKING ] ";
+    FILE *f = fopen(g_modprop, "r");
+    if (!f) return;
+    char tmp[PATH_MAX + 128];
+    snprintf(tmp, sizeof tmp, "%s.tmp.%d", g_modprop, (int)getpid());
+    FILE *o = fopen(tmp, "w");
+    if (!o) {
+        fclose(f);
+        return;
+    }
+    char line[2048];
+    while (fgets(line, sizeof line, f)) {
+        if (strncmp(line, "description=", 12) == 0) {
+            /* padanan sed -Ei: ganti "description=" + opsional "[...]<spasi>",
+             * sisa deskripsi setelahnya dipertahankan (.* greedy sampai ']' terakhir) */
+            char rest[2048], tail[2048] = "";
+            snprintf(rest, sizeof rest, "%s", line + 12);
+            trim_nl(rest);
+            if (rest[0] == '[') {
+                char *last = strrchr(rest, ']');
+                if (last) {
+                    char *after = last + 1;
+                    while (*after == ' ' || *after == '\t') after++;
+                    snprintf(tail, sizeof tail, "%s", after);
+                } else {
+                    snprintf(tail, sizeof tail, "%s", rest);
+                }
+            } else {
+                snprintf(tail, sizeof tail, "%s", rest);
+            }
+            fprintf(o, "%s%s\n", repl, tail);
+        } else {
+            fprintf(o, "%s", line);
+        }
+    }
+    fclose(f);
+    fclose(o);
+    rename(tmp, g_modprop);
+}
+
+static void set_best_tcp(const char *const *algos, int count) {
+    char avail[512] = "";
+    read_first_line("/proc/sys/net/ipv4/tcp_available_congestion_control",
+                    avail, sizeof avail);
+    char tried[256];
+    tried[0] = 0;
+    for (int i = 0; i < count; i++) {
+        if (i) strncat(tried, " ", sizeof tried - strlen(tried) - 1);
+        strncat(tried, algos[i], sizeof tried - strlen(tried) - 1);
+        char tok[64];
+        for (int t = 1; ws_token(avail, t, tok, sizeof tok); t++) {
+            if (strcmp(tok, algos[i]) != 0) continue;
+            if (write_sysfile("/proc/sys/net/ipv4/tcp_congestion_control", algos[i]) == 0) {
+                write_logf("Auto-Detect: TCP optimized to %s", "SUCCESS", algos[i]);
+                return;
+            }
+            break;
+        }
+    }
+    write_logf("Auto-Detect: Failed to set TCP (tried: %s)", "FAILED", tried);
+}
+
+static void detect_games(void) {
+    write_log("Game Scanner: Detecting installed games...", "STARTED");
+    FILE *out = fopen(g_gamelist, "w");
+    if (out) fclose(out);
+
+    FILE *f = popen("cmd package query-activities -a android.intent.action.MAIN "
+                    "-c android.intent.category.LAUNCHER 2>/dev/null", "r");
+    static char *list[2048];
+    int n = 0;
+    char p[512] = "", line[4096];
+    while (f && fgets(line, sizeof line, f)) {
+        trim_nl(line);
+        if (strstr(line, "geNa")) {
+            /* awk -F=: $2 = antara '=' pertama dan '=' kedua */
+            char *e1 = strchr(line, '=');
+            if (e1) {
+                char *e2 = strchr(e1 + 1, '=');
+                size_t len = e2 ? (size_t)(e2 - e1 - 1) : strlen(e1 + 1);
+                if (len >= sizeof p) len = sizeof p - 1;
+                memcpy(p, e1 + 1, len);
+                p[len] = 0;
+            } else {
+                p[0] = 0;
+            }
+        }
+        if (strstr(line, "ry=0") && p[0] && n < 2048)
+            list[n++] = strdup(p);
+    }
+    if (f) pclose(f);
+
+    qsort(list, (size_t)n, sizeof list[0], namecmp);
+    out = fopen(g_gamelist, "a");
+    int gc = 0;
+    char found[8192];
+    found[0] = 0;
+    size_t used = 0;
+    for (int i = 0; i < n; i++) {
+        if (i && strcmp(list[i], list[i - 1]) == 0) continue;
+        if (out) fprintf(out, "%s\n", list[i]);
+        gc++;
+        int l = snprintf(found + used, sizeof found - used, "%s,", list[i]);
+        if (l > 0) used += (size_t)l;
+        if (used >= sizeof found - 1) break;
+    }
+    if (out) fclose(out);
+    write_logf("Game Scanner: Found %d games [%s]", "SUCCESS", gc, found);
+    for (int i = 0; i < n; i++) free(list[i]);
+}
+
+/* ---------- pgrep + renice (native) ---------- */
+
+static int scan_comm_pids(const char *prefix, long *pids, int max) {
+    DIR *d = opendir("/proc");
+    if (!d) return 0;
+    int n = 0;
+    struct dirent *e;
+    char path[320], comm[64];
+    size_t pl = strlen(prefix);
+    while ((e = readdir(d)) && n < max) {
+        if (!isdigit((unsigned char)e->d_name[0])) continue;
+        snprintf(path, sizeof path, "/proc/%s/comm", e->d_name);
+        if (read_first_line(path, comm, sizeof comm) != 0) continue;
+        if (strncmp(comm, prefix, pl) == 0)
+            pids[n++] = strtol(e->d_name, NULL, 10);
+    }
+    closedir(d);
+    return n;
+}
+
+static int ksoft_renice(int prio) {
+    long pids[256];
+    int n = scan_comm_pids("ksoftirqd", pids, 256);
+    int failed = 0;
+    for (int i = 0; i < n; i++)
+        if (setpriority(PRIO_PROCESS, (id_t)pids[i], prio) != 0) failed = 1;
+    return failed;
+}
+
+static int pid_in(long *pids, int n, long pid) {
+    for (int i = 0; i < n; i++)
+        if (pids[i] == pid) return 1;
+    return 0;
+}
+
+/* padanan pgrep -f "rild|netd" + renice per pid */
+static int cmdlines_renice(const char *const *pats, int npats, int prio) {
+    DIR *d = opendir("/proc");
+    if (!d) return 0;
+    long pids[512];
+    int n = 0;
+    struct dirent *e;
+    char path[320], buf[4096];
+    while ((e = readdir(d)) && n < 512) {
+        if (!isdigit((unsigned char)e->d_name[0])) continue;
+        long pid = strtol(e->d_name, NULL, 10);
+        snprintf(path, sizeof path, "/proc/%ld/cmdline", pid);
+        int fd = open(path, O_RDONLY);
+        if (fd < 0) continue;
+        ssize_t r = read(fd, buf, sizeof buf - 1);
+        close(fd);
+        if (r <= 0) continue;
+        buf[r] = 0;
+        for (ssize_t i = 0; i < r; i++)
+            if (buf[i] == 0) buf[i] = ' ';
+        for (int k = 0; k < npats; k++) {
+            if (strstr(buf, pats[k]) && !pid_in(pids, n, pid)) {
+                pids[n++] = pid;
+                break;
+            }
+        }
+    }
+    closedir(d);
+    int failed = 0;
+    for (int i = 0; i < n; i++)
+        if (setpriority(PRIO_PROCESS, (id_t)pids[i], prio) != 0) failed = 1;
+    return failed;
+}
+
+static long pm_uid(const char *pkg) {
+    FILE *f = popen("pm list packages -U", "r");
+    if (!f) return -1;
+    char line[1024];
+    long uid = -1;
+    size_t pl = strlen(pkg);
+    while (fgets(line, sizeof line, f)) {
+        trim_nl(line);
+        if (strncmp(line, "package:", 8) != 0) continue;
+        if (strncmp(line + 8, pkg, pl) != 0 || line[8 + pl] != ' ') continue;
+        const char *u = strstr(line, "uid:");
+        if (u) {
+            uid = strtol(u + 4, NULL, 10);
+            break;
+        }
+    }
+    pclose(f);
+    return uid;
+}
+
+/* ---------- apply engine + tabel preset ----------
+ * Setiap op membawa string shell asli (disp) supaya baris log SKIP tetap
+ * identik dengan versi shell; eksekusinya native (path) atau via sh (shcmd).
+ */
+
+typedef struct {
+    const char *disp;
+    const char *path;
+    const char *val;
+    const char *shcmd;
+} op_t;
+
+#define SYS(d, p, v) { d, p, v, NULL }
+#define SH(d, c)     { d, NULL, NULL, c }
+
+static void apply_ops(const char *name, const op_t *ops, int n) {
+    int failed = 0, ok = 0;
+    for (int i = 0; i < n; i++) {
+        int rc;
+        if (ops[i].path) rc = write_sysfile(ops[i].path, ops[i].val);
+        else if (ops[i].shcmd) rc = sh(ops[i].shcmd);
+        else rc = 0;
+        if (rc == 0) ok++;
+        else {
+            failed++;
+            write_logf("  -> not applied: %s", "SKIP", ops[i].disp);
+        }
+    }
+    if (failed == 0) write_log(name, "SUCCESS");
+    else if (ok > 0) write_logf("%s (%d/%d applied)", "", name, ok, n);
+    else write_log(name, "FAILED");
+}
+
+/* TABLES:GENERATED — preset & op-list dihasilkan dari upload/PingPimp
+ * oleh scripts/gen_pp_tables.py; jangan sunting tangan. */
+/* Generated by scripts/gen_pp_tables.py from upload/PingPimp — do not hand-edit. */
+
+static const op_t OP_DEFAULT[] = {
+    SYS("echo '4096' > /proc/sys/net/core/netdev_max_backlog", "/proc/sys/net/core/netdev_max_backlog", "4096"),
+    SYS("echo '4096' > /proc/sys/net/core/somaxconn", "/proc/sys/net/core/somaxconn", "4096"),
+    SYS("echo '4096' > /proc/sys/net/core/netdev_budget", "/proc/sys/net/core/netdev_budget", "4096"),
+    SYS("echo '8000' > /proc/sys/net/core/netdev_budget_usecs", "/proc/sys/net/core/netdev_budget_usecs", "8000"),
+    SYS("echo '204800' > /proc/sys/net/core/optmem_max", "/proc/sys/net/core/optmem_max", "204800"),
+    SYS("echo '262144' > /proc/sys/net/core/rmem_default", "/proc/sys/net/core/rmem_default", "262144"),
+    SYS("echo '1048576' > /proc/sys/net/core/rmem_max", "/proc/sys/net/core/rmem_max", "1048576"),
+    SYS("echo '262144' > /proc/sys/net/core/wmem_default", "/proc/sys/net/core/wmem_default", "262144"),
+    SYS("echo '1048576' > /proc/sys/net/core/wmem_max", "/proc/sys/net/core/wmem_max", "1048576"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_slow_start_after_idle", "/proc/sys/net/ipv4/tcp_slow_start_after_idle", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_sack", "/proc/sys/net/ipv4/tcp_sack", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_window_scaling", "/proc/sys/net/ipv4/tcp_window_scaling", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_moderate_rcvbuf", "/proc/sys/net/ipv4/tcp_moderate_rcvbuf", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_timestamps", "/proc/sys/net/ipv4/tcp_timestamps", "1"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_no_metrics_save", "/proc/sys/net/ipv4/tcp_no_metrics_save", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_mtu_probing", "/proc/sys/net/ipv4/tcp_mtu_probing", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_rfc1337", "/proc/sys/net/ipv4/tcp_rfc1337", "1"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_fastopen", "/proc/sys/net/ipv4/tcp_fastopen", "3"),
+    SYS("echo '2' > /proc/sys/net/ipv4/tcp_frto", "/proc/sys/net/ipv4/tcp_frto", "2"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_recovery", "/proc/sys/net/ipv4/tcp_recovery", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_early_retrans", "/proc/sys/net/ipv4/tcp_early_retrans", "1"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_reordering", "/proc/sys/net/ipv4/tcp_reordering", "3"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_ecn", "/proc/sys/net/ipv4/tcp_ecn", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_tw_reuse", "/proc/sys/net/ipv4/tcp_tw_reuse", "1"),
+    SYS("echo '4' > /proc/sys/net/ipv4/tcp_syn_retries", "/proc/sys/net/ipv4/tcp_syn_retries", "4"),
+    SYS("echo '4' > /proc/sys/net/ipv4/tcp_synack_retries", "/proc/sys/net/ipv4/tcp_synack_retries", "4"),
+    SYS("echo '4096 87380 1048576' > /proc/sys/net/ipv4/tcp_rmem", "/proc/sys/net/ipv4/tcp_rmem", "4096 87380 1048576"),
+    SYS("echo '4096 65536 524288' > /proc/sys/net/ipv4/tcp_wmem", "/proc/sys/net/ipv4/tcp_wmem", "4096 65536 524288"),
+    SYS("echo '16384 32768 49152' > /proc/sys/net/ipv4/tcp_mem", "/proc/sys/net/ipv4/tcp_mem", "16384 32768 49152"),
+    SYS("echo '16384' > /proc/sys/net/ipv4/udp_rmem_min", "/proc/sys/net/ipv4/udp_rmem_min", "16384"),
+    SYS("echo '16384' > /proc/sys/net/ipv4/udp_wmem_min", "/proc/sys/net/ipv4/udp_wmem_min", "16384"),
+    SYS("echo '16384' > /proc/sys/net/ipv4/tcp_notsent_lowat", "/proc/sys/net/ipv4/tcp_notsent_lowat", "16384"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_abort_on_overflow", "/proc/sys/net/ipv4/tcp_abort_on_overflow", "0"),
+    SYS("echo '300' > /proc/sys/net/ipv4/tcp_max_reordering", "/proc/sys/net/ipv4/tcp_max_reordering", "300"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_adv_win_scale", "/proc/sys/net/ipv4/tcp_adv_win_scale", "1"),
+    SYS("echo '2048' > /proc/sys/net/ipv4/tcp_max_syn_backlog", "/proc/sys/net/ipv4/tcp_max_syn_backlog", "2048"),
+    SYS("echo '8192' > /proc/sys/net/ipv4/tcp_max_tw_buckets", "/proc/sys/net/ipv4/tcp_max_tw_buckets", "8192"),
+    SYS("echo '1024 65535' > /proc/sys/net/ipv4/ip_local_port_range", "/proc/sys/net/ipv4/ip_local_port_range", "1024 65535"),
+    SYS("echo '30' > /proc/sys/net/ipv4/tcp_fin_timeout", "/proc/sys/net/ipv4/tcp_fin_timeout", "30"),
+    SYS("echo '600' > /proc/sys/net/ipv4/tcp_keepalive_time", "/proc/sys/net/ipv4/tcp_keepalive_time", "600"),
+    SYS("echo '30' > /proc/sys/net/ipv4/tcp_keepalive_intvl", "/proc/sys/net/ipv4/tcp_keepalive_intvl", "30"),
+    SYS("echo '5' > /proc/sys/net/ipv4/tcp_keepalive_probes", "/proc/sys/net/ipv4/tcp_keepalive_probes", "5"),
+    SYS("echo '1' > /proc/sys/net/ipv4/route/flush", "/proc/sys/net/ipv4/route/flush", "1"),
+    SH("cmd wifi force-low-latency-mode disabled 2>/dev/null || true", "cmd wifi force-low-latency-mode disabled 2>/dev/null || true"),
+};
+#define OP_DEFAULT_LEN ((int)(sizeof OP_DEFAULT / sizeof OP_DEFAULT[0]))
+
+static const op_t OP_GAME[] = {
+    SYS("echo '1000' > /proc/sys/net/core/netdev_max_backlog", "/proc/sys/net/core/netdev_max_backlog", "1000"),
+    SYS("echo '1024' > /proc/sys/net/core/somaxconn", "/proc/sys/net/core/somaxconn", "1024"),
+    SYS("echo '6000' > /proc/sys/net/core/netdev_budget", "/proc/sys/net/core/netdev_budget", "6000"),
+    SYS("echo '6000' > /proc/sys/net/core/netdev_budget_usecs", "/proc/sys/net/core/netdev_budget_usecs", "6000"),
+    SYS("echo '102400' > /proc/sys/net/core/optmem_max", "/proc/sys/net/core/optmem_max", "102400"),
+    SYS("echo '131072' > /proc/sys/net/core/rmem_default", "/proc/sys/net/core/rmem_default", "131072"),
+    SYS("echo '524288' > /proc/sys/net/core/rmem_max", "/proc/sys/net/core/rmem_max", "524288"),
+    SYS("echo '131072' > /proc/sys/net/core/wmem_default", "/proc/sys/net/core/wmem_default", "131072"),
+    SYS("echo '524288' > /proc/sys/net/core/wmem_max", "/proc/sys/net/core/wmem_max", "524288"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_slow_start_after_idle", "/proc/sys/net/ipv4/tcp_slow_start_after_idle", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_sack", "/proc/sys/net/ipv4/tcp_sack", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_window_scaling", "/proc/sys/net/ipv4/tcp_window_scaling", "1"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_moderate_rcvbuf", "/proc/sys/net/ipv4/tcp_moderate_rcvbuf", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_timestamps", "/proc/sys/net/ipv4/tcp_timestamps", "1"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_no_metrics_save", "/proc/sys/net/ipv4/tcp_no_metrics_save", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_mtu_probing", "/proc/sys/net/ipv4/tcp_mtu_probing", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_rfc1337", "/proc/sys/net/ipv4/tcp_rfc1337", "1"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_fastopen", "/proc/sys/net/ipv4/tcp_fastopen", "3"),
+    SYS("echo '2' > /proc/sys/net/ipv4/tcp_frto", "/proc/sys/net/ipv4/tcp_frto", "2"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_recovery", "/proc/sys/net/ipv4/tcp_recovery", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_early_retrans", "/proc/sys/net/ipv4/tcp_early_retrans", "1"),
+    SYS("echo '5' > /proc/sys/net/ipv4/tcp_reordering", "/proc/sys/net/ipv4/tcp_reordering", "5"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_ecn", "/proc/sys/net/ipv4/tcp_ecn", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_tw_reuse", "/proc/sys/net/ipv4/tcp_tw_reuse", "1"),
+    SYS("echo '2' > /proc/sys/net/ipv4/tcp_syn_retries", "/proc/sys/net/ipv4/tcp_syn_retries", "2"),
+    SYS("echo '2' > /proc/sys/net/ipv4/tcp_synack_retries", "/proc/sys/net/ipv4/tcp_synack_retries", "2"),
+    SYS("echo '4096 32768 131072' > /proc/sys/net/ipv4/tcp_rmem", "/proc/sys/net/ipv4/tcp_rmem", "4096 32768 131072"),
+    SYS("echo '4096 32768 131072' > /proc/sys/net/ipv4/tcp_wmem", "/proc/sys/net/ipv4/tcp_wmem", "4096 32768 131072"),
+    SYS("echo '8192 16384 24576' > /proc/sys/net/ipv4/tcp_mem", "/proc/sys/net/ipv4/tcp_mem", "8192 16384 24576"),
+    SYS("echo '32768' > /proc/sys/net/ipv4/udp_rmem_min", "/proc/sys/net/ipv4/udp_rmem_min", "32768"),
+    SYS("echo '32768' > /proc/sys/net/ipv4/udp_wmem_min", "/proc/sys/net/ipv4/udp_wmem_min", "32768"),
+    SYS("echo '2048' > /proc/sys/net/ipv4/tcp_notsent_lowat", "/proc/sys/net/ipv4/tcp_notsent_lowat", "2048"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_abort_on_overflow", "/proc/sys/net/ipv4/tcp_abort_on_overflow", "1"),
+    SYS("echo '100' > /proc/sys/net/ipv4/tcp_max_reordering", "/proc/sys/net/ipv4/tcp_max_reordering", "100"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_adv_win_scale", "/proc/sys/net/ipv4/tcp_adv_win_scale", "0"),
+    SYS("echo '1024' > /proc/sys/net/ipv4/tcp_max_syn_backlog", "/proc/sys/net/ipv4/tcp_max_syn_backlog", "1024"),
+    SYS("echo '4096' > /proc/sys/net/ipv4/tcp_max_tw_buckets", "/proc/sys/net/ipv4/tcp_max_tw_buckets", "4096"),
+    SYS("echo '1024 65535' > /proc/sys/net/ipv4/ip_local_port_range", "/proc/sys/net/ipv4/ip_local_port_range", "1024 65535"),
+    SYS("echo '10' > /proc/sys/net/ipv4/tcp_fin_timeout", "/proc/sys/net/ipv4/tcp_fin_timeout", "10"),
+    SYS("echo '300' > /proc/sys/net/ipv4/tcp_keepalive_time", "/proc/sys/net/ipv4/tcp_keepalive_time", "300"),
+    SYS("echo '10' > /proc/sys/net/ipv4/tcp_keepalive_intvl", "/proc/sys/net/ipv4/tcp_keepalive_intvl", "10"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_keepalive_probes", "/proc/sys/net/ipv4/tcp_keepalive_probes", "3"),
+    SYS("echo '1' > /proc/sys/net/ipv4/route/flush", "/proc/sys/net/ipv4/route/flush", "1"),
+    SH("cmd wifi force-low-latency-mode enabled 2>/dev/null || true", "cmd wifi force-low-latency-mode enabled 2>/dev/null || true"),
+};
+#define OP_GAME_LEN ((int)(sizeof OP_GAME / sizeof OP_GAME[0]))
+
+static const op_t OP_DOWNLOAD[] = {
+    SYS("echo '16384' > /proc/sys/net/core/netdev_max_backlog", "/proc/sys/net/core/netdev_max_backlog", "16384"),
+    SYS("echo '8192' > /proc/sys/net/core/somaxconn", "/proc/sys/net/core/somaxconn", "8192"),
+    SYS("echo '60000' > /proc/sys/net/core/netdev_budget", "/proc/sys/net/core/netdev_budget", "60000"),
+    SYS("echo '8000' > /proc/sys/net/core/netdev_budget_usecs", "/proc/sys/net/core/netdev_budget_usecs", "8000"),
+    SYS("echo '409600' > /proc/sys/net/core/optmem_max", "/proc/sys/net/core/optmem_max", "409600"),
+    SYS("echo '524288' > /proc/sys/net/core/rmem_default", "/proc/sys/net/core/rmem_default", "524288"),
+    SYS("echo '16777216' > /proc/sys/net/core/rmem_max", "/proc/sys/net/core/rmem_max", "16777216"),
+    SYS("echo '524288' > /proc/sys/net/core/wmem_default", "/proc/sys/net/core/wmem_default", "524288"),
+    SYS("echo '16777216' > /proc/sys/net/core/wmem_max", "/proc/sys/net/core/wmem_max", "16777216"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_slow_start_after_idle", "/proc/sys/net/ipv4/tcp_slow_start_after_idle", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_sack", "/proc/sys/net/ipv4/tcp_sack", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_window_scaling", "/proc/sys/net/ipv4/tcp_window_scaling", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_moderate_rcvbuf", "/proc/sys/net/ipv4/tcp_moderate_rcvbuf", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_timestamps", "/proc/sys/net/ipv4/tcp_timestamps", "1"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_no_metrics_save", "/proc/sys/net/ipv4/tcp_no_metrics_save", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_mtu_probing", "/proc/sys/net/ipv4/tcp_mtu_probing", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_rfc1337", "/proc/sys/net/ipv4/tcp_rfc1337", "1"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_fastopen", "/proc/sys/net/ipv4/tcp_fastopen", "3"),
+    SYS("echo '2' > /proc/sys/net/ipv4/tcp_frto", "/proc/sys/net/ipv4/tcp_frto", "2"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_recovery", "/proc/sys/net/ipv4/tcp_recovery", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_early_retrans", "/proc/sys/net/ipv4/tcp_early_retrans", "1"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_reordering", "/proc/sys/net/ipv4/tcp_reordering", "3"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_ecn", "/proc/sys/net/ipv4/tcp_ecn", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_tw_reuse", "/proc/sys/net/ipv4/tcp_tw_reuse", "1"),
+    SYS("echo '5' > /proc/sys/net/ipv4/tcp_syn_retries", "/proc/sys/net/ipv4/tcp_syn_retries", "5"),
+    SYS("echo '5' > /proc/sys/net/ipv4/tcp_synack_retries", "/proc/sys/net/ipv4/tcp_synack_retries", "5"),
+    SYS("echo '4096 87380 16777216' > /proc/sys/net/ipv4/tcp_rmem", "/proc/sys/net/ipv4/tcp_rmem", "4096 87380 16777216"),
+    SYS("echo '4096 65536 16777216' > /proc/sys/net/ipv4/tcp_wmem", "/proc/sys/net/ipv4/tcp_wmem", "4096 65536 16777216"),
+    SYS("echo '131072 262144 393216' > /proc/sys/net/ipv4/tcp_mem", "/proc/sys/net/ipv4/tcp_mem", "131072 262144 393216"),
+    SYS("echo '16384' > /proc/sys/net/ipv4/udp_rmem_min", "/proc/sys/net/ipv4/udp_rmem_min", "16384"),
+    SYS("echo '16384' > /proc/sys/net/ipv4/udp_wmem_min", "/proc/sys/net/ipv4/udp_wmem_min", "16384"),
+    SYS("echo '4294967295' > /proc/sys/net/ipv4/tcp_notsent_lowat", "/proc/sys/net/ipv4/tcp_notsent_lowat", "4294967295"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_abort_on_overflow", "/proc/sys/net/ipv4/tcp_abort_on_overflow", "0"),
+    SYS("echo '300' > /proc/sys/net/ipv4/tcp_max_reordering", "/proc/sys/net/ipv4/tcp_max_reordering", "300"),
+    SYS("echo '2' > /proc/sys/net/ipv4/tcp_adv_win_scale", "/proc/sys/net/ipv4/tcp_adv_win_scale", "2"),
+    SYS("echo '4096' > /proc/sys/net/ipv4/tcp_max_syn_backlog", "/proc/sys/net/ipv4/tcp_max_syn_backlog", "4096"),
+    SYS("echo '16384' > /proc/sys/net/ipv4/tcp_max_tw_buckets", "/proc/sys/net/ipv4/tcp_max_tw_buckets", "16384"),
+    SYS("echo '1024 65535' > /proc/sys/net/ipv4/ip_local_port_range", "/proc/sys/net/ipv4/ip_local_port_range", "1024 65535"),
+    SYS("echo '30' > /proc/sys/net/ipv4/tcp_fin_timeout", "/proc/sys/net/ipv4/tcp_fin_timeout", "30"),
+    SYS("echo '1800' > /proc/sys/net/ipv4/tcp_keepalive_time", "/proc/sys/net/ipv4/tcp_keepalive_time", "1800"),
+    SYS("echo '60' > /proc/sys/net/ipv4/tcp_keepalive_intvl", "/proc/sys/net/ipv4/tcp_keepalive_intvl", "60"),
+    SYS("echo '9' > /proc/sys/net/ipv4/tcp_keepalive_probes", "/proc/sys/net/ipv4/tcp_keepalive_probes", "9"),
+    SYS("echo '1' > /proc/sys/net/ipv4/route/flush", "/proc/sys/net/ipv4/route/flush", "1"),
+    SH("cmd wifi force-low-latency-mode disabled 2>/dev/null || true", "cmd wifi force-low-latency-mode disabled 2>/dev/null || true"),
+};
+#define OP_DOWNLOAD_LEN ((int)(sizeof OP_DOWNLOAD / sizeof OP_DOWNLOAD[0]))
+
+static const op_t OP_STREAMING[] = {
+    SYS("echo '8192' > /proc/sys/net/core/netdev_max_backlog", "/proc/sys/net/core/netdev_max_backlog", "8192"),
+    SYS("echo '4096' > /proc/sys/net/core/somaxconn", "/proc/sys/net/core/somaxconn", "4096"),
+    SYS("echo '30000' > /proc/sys/net/core/netdev_budget", "/proc/sys/net/core/netdev_budget", "30000"),
+    SYS("echo '8000' > /proc/sys/net/core/netdev_budget_usecs", "/proc/sys/net/core/netdev_budget_usecs", "8000"),
+    SYS("echo '204800' > /proc/sys/net/core/optmem_max", "/proc/sys/net/core/optmem_max", "204800"),
+    SYS("echo '262144' > /proc/sys/net/core/rmem_default", "/proc/sys/net/core/rmem_default", "262144"),
+    SYS("echo '8388608' > /proc/sys/net/core/rmem_max", "/proc/sys/net/core/rmem_max", "8388608"),
+    SYS("echo '262144' > /proc/sys/net/core/wmem_default", "/proc/sys/net/core/wmem_default", "262144"),
+    SYS("echo '8388608' > /proc/sys/net/core/wmem_max", "/proc/sys/net/core/wmem_max", "8388608"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_slow_start_after_idle", "/proc/sys/net/ipv4/tcp_slow_start_after_idle", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_sack", "/proc/sys/net/ipv4/tcp_sack", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_window_scaling", "/proc/sys/net/ipv4/tcp_window_scaling", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_moderate_rcvbuf", "/proc/sys/net/ipv4/tcp_moderate_rcvbuf", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_timestamps", "/proc/sys/net/ipv4/tcp_timestamps", "1"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_no_metrics_save", "/proc/sys/net/ipv4/tcp_no_metrics_save", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_mtu_probing", "/proc/sys/net/ipv4/tcp_mtu_probing", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_rfc1337", "/proc/sys/net/ipv4/tcp_rfc1337", "1"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_fastopen", "/proc/sys/net/ipv4/tcp_fastopen", "3"),
+    SYS("echo '2' > /proc/sys/net/ipv4/tcp_frto", "/proc/sys/net/ipv4/tcp_frto", "2"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_recovery", "/proc/sys/net/ipv4/tcp_recovery", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_early_retrans", "/proc/sys/net/ipv4/tcp_early_retrans", "1"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_reordering", "/proc/sys/net/ipv4/tcp_reordering", "3"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_ecn", "/proc/sys/net/ipv4/tcp_ecn", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_tw_reuse", "/proc/sys/net/ipv4/tcp_tw_reuse", "1"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_syn_retries", "/proc/sys/net/ipv4/tcp_syn_retries", "3"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_synack_retries", "/proc/sys/net/ipv4/tcp_synack_retries", "3"),
+    SYS("echo '4096 87380 8388608' > /proc/sys/net/ipv4/tcp_rmem", "/proc/sys/net/ipv4/tcp_rmem", "4096 87380 8388608"),
+    SYS("echo '4096 65536 4194304' > /proc/sys/net/ipv4/tcp_wmem", "/proc/sys/net/ipv4/tcp_wmem", "4096 65536 4194304"),
+    SYS("echo '65536 131072 196608' > /proc/sys/net/ipv4/tcp_mem", "/proc/sys/net/ipv4/tcp_mem", "65536 131072 196608"),
+    SYS("echo '32768' > /proc/sys/net/ipv4/udp_rmem_min", "/proc/sys/net/ipv4/udp_rmem_min", "32768"),
+    SYS("echo '32768' > /proc/sys/net/ipv4/udp_wmem_min", "/proc/sys/net/ipv4/udp_wmem_min", "32768"),
+    SYS("echo '131072' > /proc/sys/net/ipv4/tcp_notsent_lowat", "/proc/sys/net/ipv4/tcp_notsent_lowat", "131072"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_abort_on_overflow", "/proc/sys/net/ipv4/tcp_abort_on_overflow", "0"),
+    SYS("echo '200' > /proc/sys/net/ipv4/tcp_max_reordering", "/proc/sys/net/ipv4/tcp_max_reordering", "200"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_adv_win_scale", "/proc/sys/net/ipv4/tcp_adv_win_scale", "1"),
+    SYS("echo '2048' > /proc/sys/net/ipv4/tcp_max_syn_backlog", "/proc/sys/net/ipv4/tcp_max_syn_backlog", "2048"),
+    SYS("echo '8192' > /proc/sys/net/ipv4/tcp_max_tw_buckets", "/proc/sys/net/ipv4/tcp_max_tw_buckets", "8192"),
+    SYS("echo '1024 65535' > /proc/sys/net/ipv4/ip_local_port_range", "/proc/sys/net/ipv4/ip_local_port_range", "1024 65535"),
+    SYS("echo '20' > /proc/sys/net/ipv4/tcp_fin_timeout", "/proc/sys/net/ipv4/tcp_fin_timeout", "20"),
+    SYS("echo '1200' > /proc/sys/net/ipv4/tcp_keepalive_time", "/proc/sys/net/ipv4/tcp_keepalive_time", "1200"),
+    SYS("echo '30' > /proc/sys/net/ipv4/tcp_keepalive_intvl", "/proc/sys/net/ipv4/tcp_keepalive_intvl", "30"),
+    SYS("echo '5' > /proc/sys/net/ipv4/tcp_keepalive_probes", "/proc/sys/net/ipv4/tcp_keepalive_probes", "5"),
+    SYS("echo '1' > /proc/sys/net/ipv4/route/flush", "/proc/sys/net/ipv4/route/flush", "1"),
+    SH("cmd wifi force-low-latency-mode disabled 2>/dev/null || true", "cmd wifi force-low-latency-mode disabled 2>/dev/null || true"),
+};
+#define OP_STREAMING_LEN ((int)(sizeof OP_STREAMING / sizeof OP_STREAMING[0]))
+
+static const op_t OP_SOCIAL[] = {
+    SYS("echo '2048' > /proc/sys/net/core/netdev_max_backlog", "/proc/sys/net/core/netdev_max_backlog", "2048"),
+    SYS("echo '2048' > /proc/sys/net/core/somaxconn", "/proc/sys/net/core/somaxconn", "2048"),
+    SYS("echo '4096' > /proc/sys/net/core/netdev_budget", "/proc/sys/net/core/netdev_budget", "4096"),
+    SYS("echo '4000' > /proc/sys/net/core/netdev_budget_usecs", "/proc/sys/net/core/netdev_budget_usecs", "4000"),
+    SYS("echo '204800' > /proc/sys/net/core/optmem_max", "/proc/sys/net/core/optmem_max", "204800"),
+    SYS("echo '131072' > /proc/sys/net/core/rmem_default", "/proc/sys/net/core/rmem_default", "131072"),
+    SYS("echo '524288' > /proc/sys/net/core/rmem_max", "/proc/sys/net/core/rmem_max", "524288"),
+    SYS("echo '131072' > /proc/sys/net/core/wmem_default", "/proc/sys/net/core/wmem_default", "131072"),
+    SYS("echo '524288' > /proc/sys/net/core/wmem_max", "/proc/sys/net/core/wmem_max", "524288"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_slow_start_after_idle", "/proc/sys/net/ipv4/tcp_slow_start_after_idle", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_sack", "/proc/sys/net/ipv4/tcp_sack", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_window_scaling", "/proc/sys/net/ipv4/tcp_window_scaling", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_moderate_rcvbuf", "/proc/sys/net/ipv4/tcp_moderate_rcvbuf", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_timestamps", "/proc/sys/net/ipv4/tcp_timestamps", "1"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_no_metrics_save", "/proc/sys/net/ipv4/tcp_no_metrics_save", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_mtu_probing", "/proc/sys/net/ipv4/tcp_mtu_probing", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_rfc1337", "/proc/sys/net/ipv4/tcp_rfc1337", "1"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_fastopen", "/proc/sys/net/ipv4/tcp_fastopen", "3"),
+    SYS("echo '2' > /proc/sys/net/ipv4/tcp_frto", "/proc/sys/net/ipv4/tcp_frto", "2"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_recovery", "/proc/sys/net/ipv4/tcp_recovery", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_early_retrans", "/proc/sys/net/ipv4/tcp_early_retrans", "1"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_reordering", "/proc/sys/net/ipv4/tcp_reordering", "3"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_ecn", "/proc/sys/net/ipv4/tcp_ecn", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_tw_reuse", "/proc/sys/net/ipv4/tcp_tw_reuse", "1"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_syn_retries", "/proc/sys/net/ipv4/tcp_syn_retries", "3"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_synack_retries", "/proc/sys/net/ipv4/tcp_synack_retries", "3"),
+    SYS("echo '4096 65536 524288' > /proc/sys/net/ipv4/tcp_rmem", "/proc/sys/net/ipv4/tcp_rmem", "4096 65536 524288"),
+    SYS("echo '4096 65536 262144' > /proc/sys/net/ipv4/tcp_wmem", "/proc/sys/net/ipv4/tcp_wmem", "4096 65536 262144"),
+    SYS("echo '16384 32768 49152' > /proc/sys/net/ipv4/tcp_mem", "/proc/sys/net/ipv4/tcp_mem", "16384 32768 49152"),
+    SYS("echo '16384' > /proc/sys/net/ipv4/udp_rmem_min", "/proc/sys/net/ipv4/udp_rmem_min", "16384"),
+    SYS("echo '16384' > /proc/sys/net/ipv4/udp_wmem_min", "/proc/sys/net/ipv4/udp_wmem_min", "16384"),
+    SYS("echo '32768' > /proc/sys/net/ipv4/tcp_notsent_lowat", "/proc/sys/net/ipv4/tcp_notsent_lowat", "32768"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_abort_on_overflow", "/proc/sys/net/ipv4/tcp_abort_on_overflow", "0"),
+    SYS("echo '300' > /proc/sys/net/ipv4/tcp_max_reordering", "/proc/sys/net/ipv4/tcp_max_reordering", "300"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_adv_win_scale", "/proc/sys/net/ipv4/tcp_adv_win_scale", "1"),
+    SYS("echo '1024' > /proc/sys/net/ipv4/tcp_max_syn_backlog", "/proc/sys/net/ipv4/tcp_max_syn_backlog", "1024"),
+    SYS("echo '4096' > /proc/sys/net/ipv4/tcp_max_tw_buckets", "/proc/sys/net/ipv4/tcp_max_tw_buckets", "4096"),
+    SYS("echo '1024 65535' > /proc/sys/net/ipv4/ip_local_port_range", "/proc/sys/net/ipv4/ip_local_port_range", "1024 65535"),
+    SYS("echo '15' > /proc/sys/net/ipv4/tcp_fin_timeout", "/proc/sys/net/ipv4/tcp_fin_timeout", "15"),
+    SYS("echo '600' > /proc/sys/net/ipv4/tcp_keepalive_time", "/proc/sys/net/ipv4/tcp_keepalive_time", "600"),
+    SYS("echo '15' > /proc/sys/net/ipv4/tcp_keepalive_intvl", "/proc/sys/net/ipv4/tcp_keepalive_intvl", "15"),
+    SYS("echo '4' > /proc/sys/net/ipv4/tcp_keepalive_probes", "/proc/sys/net/ipv4/tcp_keepalive_probes", "4"),
+    SYS("echo '1' > /proc/sys/net/ipv4/route/flush", "/proc/sys/net/ipv4/route/flush", "1"),
+    SH("cmd wifi force-low-latency-mode enabled 2>/dev/null || true", "cmd wifi force-low-latency-mode enabled 2>/dev/null || true"),
+};
+#define OP_SOCIAL_LEN ((int)(sizeof OP_SOCIAL / sizeof OP_SOCIAL[0]))
+
+static const op_t OP_OUTDOOR[] = {
+    SYS("echo '4096' > /proc/sys/net/core/netdev_max_backlog", "/proc/sys/net/core/netdev_max_backlog", "4096"),
+    SYS("echo '2048' > /proc/sys/net/core/somaxconn", "/proc/sys/net/core/somaxconn", "2048"),
+    SYS("echo '8000' > /proc/sys/net/core/netdev_budget", "/proc/sys/net/core/netdev_budget", "8000"),
+    SYS("echo '8000' > /proc/sys/net/core/netdev_budget_usecs", "/proc/sys/net/core/netdev_budget_usecs", "8000"),
+    SYS("echo '102400' > /proc/sys/net/core/optmem_max", "/proc/sys/net/core/optmem_max", "102400"),
+    SYS("echo '262144' > /proc/sys/net/core/rmem_default", "/proc/sys/net/core/rmem_default", "262144"),
+    SYS("echo '2097152' > /proc/sys/net/core/rmem_max", "/proc/sys/net/core/rmem_max", "2097152"),
+    SYS("echo '262144' > /proc/sys/net/core/wmem_default", "/proc/sys/net/core/wmem_default", "262144"),
+    SYS("echo '2097152' > /proc/sys/net/core/wmem_max", "/proc/sys/net/core/wmem_max", "2097152"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_slow_start_after_idle", "/proc/sys/net/ipv4/tcp_slow_start_after_idle", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_sack", "/proc/sys/net/ipv4/tcp_sack", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_window_scaling", "/proc/sys/net/ipv4/tcp_window_scaling", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_moderate_rcvbuf", "/proc/sys/net/ipv4/tcp_moderate_rcvbuf", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_timestamps", "/proc/sys/net/ipv4/tcp_timestamps", "1"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_no_metrics_save", "/proc/sys/net/ipv4/tcp_no_metrics_save", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_mtu_probing", "/proc/sys/net/ipv4/tcp_mtu_probing", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_rfc1337", "/proc/sys/net/ipv4/tcp_rfc1337", "1"),
+    SYS("echo '3' > /proc/sys/net/ipv4/tcp_fastopen", "/proc/sys/net/ipv4/tcp_fastopen", "3"),
+    SYS("echo '2' > /proc/sys/net/ipv4/tcp_frto", "/proc/sys/net/ipv4/tcp_frto", "2"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_recovery", "/proc/sys/net/ipv4/tcp_recovery", "1"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_early_retrans", "/proc/sys/net/ipv4/tcp_early_retrans", "1"),
+    SYS("echo '10' > /proc/sys/net/ipv4/tcp_reordering", "/proc/sys/net/ipv4/tcp_reordering", "10"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_ecn", "/proc/sys/net/ipv4/tcp_ecn", "0"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_tw_reuse", "/proc/sys/net/ipv4/tcp_tw_reuse", "1"),
+    SYS("echo '5' > /proc/sys/net/ipv4/tcp_syn_retries", "/proc/sys/net/ipv4/tcp_syn_retries", "5"),
+    SYS("echo '5' > /proc/sys/net/ipv4/tcp_synack_retries", "/proc/sys/net/ipv4/tcp_synack_retries", "5"),
+    SYS("echo '4096 87380 2097152' > /proc/sys/net/ipv4/tcp_rmem", "/proc/sys/net/ipv4/tcp_rmem", "4096 87380 2097152"),
+    SYS("echo '4096 65536 1048576' > /proc/sys/net/ipv4/tcp_wmem", "/proc/sys/net/ipv4/tcp_wmem", "4096 65536 1048576"),
+    SYS("echo '32768 65536 98304' > /proc/sys/net/ipv4/tcp_mem", "/proc/sys/net/ipv4/tcp_mem", "32768 65536 98304"),
+    SYS("echo '16384' > /proc/sys/net/ipv4/udp_rmem_min", "/proc/sys/net/ipv4/udp_rmem_min", "16384"),
+    SYS("echo '16384' > /proc/sys/net/ipv4/udp_wmem_min", "/proc/sys/net/ipv4/udp_wmem_min", "16384"),
+    SYS("echo '65536' > /proc/sys/net/ipv4/tcp_notsent_lowat", "/proc/sys/net/ipv4/tcp_notsent_lowat", "65536"),
+    SYS("echo '0' > /proc/sys/net/ipv4/tcp_abort_on_overflow", "/proc/sys/net/ipv4/tcp_abort_on_overflow", "0"),
+    SYS("echo '600' > /proc/sys/net/ipv4/tcp_max_reordering", "/proc/sys/net/ipv4/tcp_max_reordering", "600"),
+    SYS("echo '1' > /proc/sys/net/ipv4/tcp_adv_win_scale", "/proc/sys/net/ipv4/tcp_adv_win_scale", "1"),
+    SYS("echo '2048' > /proc/sys/net/ipv4/tcp_max_syn_backlog", "/proc/sys/net/ipv4/tcp_max_syn_backlog", "2048"),
+    SYS("echo '8192' > /proc/sys/net/ipv4/tcp_max_tw_buckets", "/proc/sys/net/ipv4/tcp_max_tw_buckets", "8192"),
+    SYS("echo '1024 65535' > /proc/sys/net/ipv4/ip_local_port_range", "/proc/sys/net/ipv4/ip_local_port_range", "1024 65535"),
+    SYS("echo '30' > /proc/sys/net/ipv4/tcp_fin_timeout", "/proc/sys/net/ipv4/tcp_fin_timeout", "30"),
+    SYS("echo '1200' > /proc/sys/net/ipv4/tcp_keepalive_time", "/proc/sys/net/ipv4/tcp_keepalive_time", "1200"),
+    SYS("echo '30' > /proc/sys/net/ipv4/tcp_keepalive_intvl", "/proc/sys/net/ipv4/tcp_keepalive_intvl", "30"),
+    SYS("echo '5' > /proc/sys/net/ipv4/tcp_keepalive_probes", "/proc/sys/net/ipv4/tcp_keepalive_probes", "5"),
+    SYS("echo '1' > /proc/sys/net/ipv4/route/flush", "/proc/sys/net/ipv4/route/flush", "1"),
+    SH("cmd wifi force-low-latency-mode disabled 2>/dev/null || true", "cmd wifi force-low-latency-mode disabled 2>/dev/null || true"),
+};
+#define OP_OUTDOOR_LEN ((int)(sizeof OP_OUTDOOR / sizeof OP_OUTDOOR[0]))
+
+static const op_t OP_STATE[] = {
+    SH("cmd settings put global netstats_enabled 0", "cmd settings put global netstats_enabled 0"),
+    SH("cmd wifi set-scan-always-available disabled", "cmd wifi set-scan-always-available disabled"),
+    SH("cmd wifi set-verbose-logging disabled -l 0", "cmd wifi set-verbose-logging disabled -l 0"),
+};
+#define OP_STATE_LEN ((int)(sizeof OP_STATE / sizeof OP_STATE[0]))
+
+static const op_t OP_UNSTATE[] = {
+    SH("cmd settings delete global netstats_enabled", "cmd settings delete global netstats_enabled"),
+    SH("cmd wifi set-scan-always-available enabled", "cmd wifi set-scan-always-available enabled"),
+    SH("cmd wifi set-verbose-logging enabled -l 1", "cmd wifi set-verbose-logging enabled -l 1"),
+};
+#define OP_UNSTATE_LEN ((int)(sizeof OP_UNSTATE / sizeof OP_UNSTATE[0]))
+
+static const op_t OP_SAVER[] = {
+    SH("cmd netpolicy set restrict-background true", "cmd netpolicy set restrict-background true"),
+    SH("cmd settings put global ingress_rate_limit_bytes_per_second 1048576", "cmd settings put global ingress_rate_limit_bytes_per_second 1048576"),
+};
+#define OP_SAVER_LEN ((int)(sizeof OP_SAVER / sizeof OP_SAVER[0]))
+
+static const op_t OP_UNSAVER[] = {
+    SH("cmd netpolicy set restrict-background false", "cmd netpolicy set restrict-background false"),
+    SH("cmd settings delete global ingress_rate_limit_bytes_per_second", "cmd settings delete global ingress_rate_limit_bytes_per_second"),
+};
+#define OP_UNSAVER_LEN ((int)(sizeof OP_UNSAVER / sizeof OP_UNSAVER[0]))
+
+static const op_t OP_DISABLE[] = {
+    SYS("sysctl -w net.ipv6.conf.all.disable_ipv6=1", "/proc/sys/net/ipv6/conf/all/disable_ipv6", "1"),
+    SYS("sysctl -w net.ipv6.conf.default.disable_ipv6=1", "/proc/sys/net/ipv6/conf/default/disable_ipv6", "1"),
+    SYS("sysctl -w net.ipv6.conf.lo.disable_ipv6=1", "/proc/sys/net/ipv6/conf/lo/disable_ipv6", "1"),
+    SH("content update --uri content://telephony/carriers --bind protocol:s:IP --bind roaming_protocol:s:IP", "content update --uri content://telephony/carriers --bind protocol:s:IP --bind roaming_protocol:s:IP"),
+    SH("cmd connectivity airplane-mode enable", "cmd connectivity airplane-mode enable"),
+    SH("sleep 1", "sleep 1"),
+    SH("cmd connectivity airplane-mode disable", "cmd connectivity airplane-mode disable"),
+};
+#define OP_DISABLE_LEN ((int)(sizeof OP_DISABLE / sizeof OP_DISABLE[0]))
+
+static const op_t OP_ENABLE[] = {
+    SYS("sysctl -w net.ipv6.conf.all.disable_ipv6=0", "/proc/sys/net/ipv6/conf/all/disable_ipv6", "0"),
+    SYS("sysctl -w net.ipv6.conf.default.disable_ipv6=0", "/proc/sys/net/ipv6/conf/default/disable_ipv6", "0"),
+    SYS("sysctl -w net.ipv6.conf.lo.disable_ipv6=0", "/proc/sys/net/ipv6/conf/lo/disable_ipv6", "0"),
+    SH("content update --uri content://telephony/carriers --bind protocol:s:IPV4V6 --bind roaming_protocol:s:IPV4V6", "content update --uri content://telephony/carriers --bind protocol:s:IPV4V6 --bind roaming_protocol:s:IPV4V6"),
+    SH("cmd connectivity airplane-mode enable", "cmd connectivity airplane-mode enable"),
+    SH("sleep 1", "sleep 1"),
+    SH("cmd connectivity airplane-mode disable", "cmd connectivity airplane-mode disable"),
+};
+#define OP_ENABLE_LEN ((int)(sizeof OP_ENABLE / sizeof OP_ENABLE[0]))
+
+static const op_t OP_CONNTRACK_ON[] = {
+    SYS("echo '32768' > $CT/nf_conntrack_max", "/proc/sys/net/netfilter/nf_conntrack_max", "32768"),
+    SYS("echo '600' > $CT/nf_conntrack_tcp_timeout_established", "/proc/sys/net/netfilter/nf_conntrack_tcp_timeout_established", "600"),
+    SYS("echo '30' > $CT/nf_conntrack_tcp_timeout_time_wait", "/proc/sys/net/netfilter/nf_conntrack_tcp_timeout_time_wait", "30"),
+    SYS("echo '15' > $CT/nf_conntrack_udp_timeout", "/proc/sys/net/netfilter/nf_conntrack_udp_timeout", "15"),
+    SYS("echo '60' > $CT/nf_conntrack_udp_timeout_stream", "/proc/sys/net/netfilter/nf_conntrack_udp_timeout_stream", "60"),
+};
+#define OP_CONNTRACK_ON_LEN ((int)(sizeof OP_CONNTRACK_ON / sizeof OP_CONNTRACK_ON[0]))
+
+/* ---------- mode functions ---------- */
+
+static int mode_default(void);
+static int mode_game(void);
+static int mode_download(void);
+static int mode_streaming(void);
+static int mode_social(void);
+static int mode_browsing(void);
+static int mode_outdoor(void);
+static int mode_state(void);
+static int mode_unstate(void);
+static int mode_saver(void);
+static int mode_unsaver(void);
+static int mode_disable(void);
+static int mode_enable(void);
+static int mode_nic_offload(void);
+static int mode_nic_on(void);
+static int mode_wifi_ps_off(void);
+static int mode_wifi_ps_on(void);
+static int mode_conntrack_on(void);
+static int mode_conntrack_off(void);
+static int mode_irq_affinity(void);
+static int mode_unirq_affinity(void);
+static int mode_boost_ksoft(void);
+static int mode_unboost_ksoft(void);
+static int mode_hw_tweak(void);
+static int mode_init_tc(void);
+static int mode_engine(const char *event);
+static int mode_auto_detect(void);
+static int mode_auto_on(void);
+static int mode_auto_off(void);
+static int mode_daemon(void);
+static int mode_boot(void);
+
+static void call_mode(const char *name, int (*fn)(void)) {
+    const char *saved = g_mode;
+    g_mode = name;
+    fn();
+    g_mode = saved;
+}
+
+static void call_preset(const char *act) {
+    if (strcmp(act, "game") == 0) call_mode("--game", mode_game);
+    else if (strcmp(act, "download") == 0) call_mode("--download", mode_download);
+    else if (strcmp(act, "streaming") == 0) call_mode("--streaming", mode_streaming);
+    else if (strcmp(act, "social") == 0) call_mode("--social", mode_social);
+    else if (strcmp(act, "browsing") == 0) call_mode("--browsing", mode_browsing);
+    else call_mode("--default", mode_default);
+}
+
+static int mode_default(void) {
+    apply_ops("Network Preset: Default", OP_DEFAULT, OP_DEFAULT_LEN);
+    set_default_qdisc();
+    return 0;
+}
+
+static int mode_game(void) {
+    apply_ops("Network Preset: Game", OP_GAME, OP_GAME_LEN);
+    set_default_qdisc();
+    return 0;
+}
+
+static int mode_download(void) {
+    apply_ops("Network Preset: Download", OP_DOWNLOAD, OP_DOWNLOAD_LEN);
+    set_default_qdisc();
+    return 0;
+}
+
+static int mode_streaming(void) {
+    apply_ops("Network Preset: Streaming", OP_STREAMING, OP_STREAMING_LEN);
+    set_default_qdisc();
+    return 0;
+}
+
+static int mode_social(void) {
+    apply_ops("Network Preset: Social / Browsing", OP_SOCIAL, OP_SOCIAL_LEN);
+    set_default_qdisc();
+    return 0;
+}
+
+static int mode_browsing(void) {
+    return mode_social();
+}
+
+static int mode_outdoor(void) {
+    apply_ops("Network Preset: Outdoor", OP_OUTDOOR, OP_OUTDOOR_LEN);
+    set_default_qdisc();
+    return 0;
+}
+
+static int mode_state(void) {
+    apply_ops("Disable Network State", OP_STATE, OP_STATE_LEN);
+    return 0;
+}
+
+static int mode_unstate(void) {
+    apply_ops("Enable Network State", OP_UNSTATE, OP_UNSTATE_LEN);
+    return 0;
+}
+
+static int mode_saver(void) {
+    apply_ops("Enable Data Saver", OP_SAVER, OP_SAVER_LEN);
+    return 0;
+}
+
+static int mode_unsaver(void) {
+    apply_ops("Disable Data Saver", OP_UNSAVER, OP_UNSAVER_LEN);
+    return 0;
+}
+
+static int mode_disable(void) {
+    apply_ops("Disable IPv6 Connection", OP_DISABLE, OP_DISABLE_LEN);
+    return 0;
+}
+
+static int mode_enable(void) {
+    apply_ops("Enable IPv6 Connection", OP_ENABLE, OP_ENABLE_LEN);
+    return 0;
+}
+
+static void nic_offload_common(int disable) {
+    if (!command_exists("ethtool")) {
         write_log("NIC Offloading: ethtool not available on this ROM, skipping", "SKIP");
         return;
     }
@@ -816,971 +1801,1056 @@ static void cmd_nic(int offload_off) {
     DIR *d = opendir("/sys/class/net");
     if (!d) return;
     struct dirent *e;
+    char cmd[512];
+    const char *sw = disable ? "off" : "on";
     while ((e = readdir(d))) {
-        if (!if_interesting(e->d_name)) continue;
-        total++;
-        if (run_cmd("ethtool -K %s gro %s gso %s", e->d_name,
-                    offload_off ? "off" : "on", offload_off ? "off" : "on") == 0) ok++;
-    }
-    closedir(d);
-    char msg[128];
-    if (ok > 0) {
-        snprintf(msg, sizeof(msg), "NIC Offloading: GRO/GSO %s on %d/%d interfaces",
-                 offload_off ? "disabled" : "restored", ok, total);
-        write_log(msg, "SUCCESS");
-    } else {
-        write_log("NIC Offloading: driver rejected changes (not supported)", "SKIP");
-    }
-}
-
-static void cmd_wifi_ps(int power_save_off) {
-    if (power_save_off && run_cmd("command -v iw") != 0) {
-        write_log("Wi-Fi Low-Jitter: iw not available", "SKIP");
-        return;
-    }
-    char iface[64];
-    get_active_iface(iface, sizeof(iface));
-    if (strncmp(iface, "wlan", 4) != 0) snprintf(iface, sizeof(iface), "wlan0");
-    if (run_cmd("iw dev %s set power_save %s", iface, power_save_off ? "off" : "on") == 0) {
-        char msg[128];
-        snprintf(msg, sizeof(msg), "Wi-Fi Low-Jitter: power_save %s on %s",
-                 power_save_off ? "disabled" : "restored", iface);
-        write_log(msg, "SUCCESS");
-    } else {
-        write_log(power_save_off ? "Wi-Fi Low-Jitter: driver rejected" : "Wi-Fi Low-Jitter: restore failed", "SKIP");
-    }
-}
-
-static const char *const CT_KEYS[]  = {"max", "tcp_est", "tcp_tw", "udp", "udp_stream", NULL};
-static const char *const CT_PATHS[] = {
-    "nf_conntrack_max",
-    "nf_conntrack_tcp_timeout_established",
-    "nf_conntrack_tcp_timeout_time_wait",
-    "nf_conntrack_udp_timeout",
-    "nf_conntrack_udp_timeout_stream"
-};
-#define CT_BASE "/proc/sys/net/netfilter/"
-#define CT_BACKUP MODDIR "/.conntrack_backup"
-
-static void cmd_conntrack_on(void) {
-    char path[256], cur[64], line[160];
-    FILE *bf;
-    if (access(CT_BACKUP, F_OK) != 0) {
-        bf = fopen(CT_BACKUP, "w");
-        if (bf) {
-            for (int i = 0; CT_KEYS[i]; i++) {
-                snprintf(path, sizeof(path), CT_BASE "%s", CT_PATHS[i]);
-                cur[0] = 0;
-                read_first_line(path, cur, sizeof(cur));
-                if (cur[0]) fprintf(bf, "%s:%s\n", CT_KEYS[i], cur);
-            }
-            fclose(bf);
-        }
-    }
-    const char *vals[] = {"32768", "600", "30", "15", "60"};
-    int ok = 0;
-    for (int i = 0; CT_KEYS[i]; i++) {
-        snprintf(path, sizeof(path), CT_BASE "%s", CT_PATHS[i]);
-        if (write_proc(path, vals[i]) == 0) ok++;
-        else log_skip("  -> not applied: %s = %s", CT_PATHS[i], vals[i]);
-    }
-    log_summary("ConnTrack Optimization", ok, 5);
-}
-
-static void cmd_conntrack_off(void) {
-    FILE *f = fopen(CT_BACKUP, "r");
-    if (!f) { write_log("ConnTrack: no backup", "SKIP"); return; }
-    char line[160], path[256];
-    while (fgets(line, sizeof(line), f)) {
-        char *nl = strpbrk(line, "\r\n"); if (nl) *nl = 0;
-        char *c = strchr(line, ':');
-        if (!c) continue;
-        *c = 0;
-        for (int i = 0; CT_KEYS[i]; i++) {
-            if (!strcmp(line, CT_KEYS[i])) {
-                snprintf(path, sizeof(path), CT_BASE "%s", CT_PATHS[i]);
-                write_proc(path, c + 1);
-                break;
-            }
-        }
-    }
-    fclose(f);
-    write_log("ConnTrack: restored kernel defaults", "SUCCESS");
-}
-
-static int cpu_last(void) {
-    char buf[64];
-    if (read_first_line("/sys/devices/system/cpu/present", buf, sizeof(buf)) != 0) return 0;
-    char *dash = strchr(buf, '-');
-    return dash ? atoi(dash + 1) : atoi(buf);
-}
-
-static int set_irq_affinity(const char *mask, const char *logname) {
-    int failed = 0;
-    FILE *f = fopen("/proc/interrupts", "r");
-    if (!f) { write_log(logname, "FAILED"); return -1; }
-    char line[1024], path[128];
-    while (fgets(line, sizeof(line), f)) {
-        if (!strcasestr(line, "wlan") && !strcasestr(line, "rmnet") && !strcasestr(line, "ccmni"))
+        const char *n = e->d_name;
+        if (strncmp(n, "wlan", 4) && strncmp(n, "eth", 3) &&
+            strncmp(n, "rmnet", 5) && strncmp(n, "ccmni", 5) &&
+            strncmp(n, "radio", 5))
             continue;
-        char *colon = strchr(line, ':');
-        if (!colon) continue;
-        *colon = 0;
-        int irq = atoi(line);
-        snprintf(path, sizeof(path), "/proc/irq/%d/smp_affinity", irq);
-        if (write_proc(path, mask) != 0) failed = 1;
-    }
-    fclose(f);
-    write_log(logname, failed ? "FAILED" : "SUCCESS");
-    return failed;
-}
-
-/* Scan /proc: setpriority utk proses dgn comm cocok */
-static int renice_procs(const char *const *comms, int nice_val) {
-    int failed = 0;
-    DIR *d = opendir("/proc");
-    if (!d) return -1;
-    struct dirent *e;
-    char path[128], comm[128];
-    while ((e = readdir(d))) {
-        if (!isdigit((unsigned char)e->d_name[0])) continue;
-        snprintf(path, sizeof(path), "/proc/%s/comm", e->d_name);
-        FILE *f = fopen(path, "r");
-        if (!f) continue;
-        if (fgets(comm, sizeof(comm), f)) {
-            char *nl = strpbrk(comm, "\r\n"); if (nl) *nl = 0;
-            for (int i = 0; comms[i]; i++) {
-                if (!strcmp(comm, comms[i])) {
-                    if (setpriority(PRIO_PROCESS, atoi(e->d_name), nice_val) != 0) failed = 1;
-                    break;
-                }
-            }
-        }
-        fclose(f);
+        total++;
+        snprintf(cmd, sizeof cmd, "ethtool -K %s gro %s gso %s 2>/dev/null", n, sw, sw);
+        if (sh(cmd) == 0) ok++;
     }
     closedir(d);
+    if (ok > 0)
+        write_logf("NIC Offloading: GRO/GSO %s on %d/%d interfaces", "SUCCESS",
+                   disable ? "disabled" : "restored", ok, total);
+    else
+        write_log("NIC Offloading: driver rejected changes (not supported)", "SKIP");
+}
+
+static int mode_nic_offload(void) {
+    nic_offload_common(1);
+    return 0;
+}
+
+static int mode_nic_on(void) {
+    nic_offload_common(0);
+    return 0;
+}
+
+static void active_wlan_if(char *out, size_t n) {
+    route_iface(out, n);
+    if (strncmp(out, "wlan", 4) != 0) snprintf(out, n, "wlan0");
+}
+
+static int mode_wifi_ps_off(void) {
+    /* UI ON = power save MATI (anti-jitter). Penamaan mengikuti aksi ke driver. */
+    if (!command_exists("iw")) {
+        write_log("Wi-Fi Low-Jitter: iw not available", "SKIP");
+        return 0;
+    }
+    char ifc[64];
+    active_wlan_if(ifc, sizeof ifc);
+    char cmd[256];
+    snprintf(cmd, sizeof cmd, "iw dev %s set power_save off >/dev/null 2>&1", ifc);
+    if (sh(cmd) == 0)
+        write_logf("Wi-Fi Low-Jitter: power_save disabled on %s", "SUCCESS", ifc);
+    else
+        write_log("Wi-Fi Low-Jitter: driver rejected", "SKIP");
+    return 0;
+}
+
+static int mode_wifi_ps_on(void) {
+    char ifc[64];
+    active_wlan_if(ifc, sizeof ifc);
+    char cmd[256];
+    snprintf(cmd, sizeof cmd, "iw dev %s set power_save on >/dev/null 2>&1", ifc);
+    if (sh(cmd) == 0)
+        write_log("Wi-Fi Low-Jitter: power_save restored", "SUCCESS");
+    else
+        write_log("Wi-Fi Low-Jitter: restore failed", "SKIP");
+    return 0;
+}
+
+static int mode_conntrack_on(void) {
+    /* Simpan nilai asli SEKALI (ke state.json) agar restore akurat ke default kernel. */
+    char b[64], v[128];
+    if (!pp_get("conntrack_backup_max", b, sizeof b) || !b[0]) {
+        static const char *bk[][2] = {
+            {"conntrack_backup_max", "/proc/sys/net/netfilter/nf_conntrack_max"},
+            {"conntrack_backup_tcp_est", "/proc/sys/net/netfilter/nf_conntrack_tcp_timeout_established"},
+            {"conntrack_backup_tcp_tw", "/proc/sys/net/netfilter/nf_conntrack_tcp_timeout_time_wait"},
+            {"conntrack_backup_udp", "/proc/sys/net/netfilter/nf_conntrack_udp_timeout"},
+            {"conntrack_backup_udp_stream", "/proc/sys/net/netfilter/nf_conntrack_udp_timeout_stream"},
+        };
+        for (size_t i = 0; i < sizeof bk / sizeof bk[0]; i++) {
+            char p[PATH_MAX + 128];
+            pp_path(p, sizeof p, bk[i][1]);
+            if (access(p, F_OK) != 0) continue;
+            if (read_first_line(bk[i][1], v, sizeof v) == 0)
+                pp_set(bk[i][0], v);
+        }
+    }
+    /* est 600s selaras keepalive game — koneksi aktif tak akan ter-GC */
+    apply_ops("ConnTrack Optimization", OP_CONNTRACK_ON, OP_CONNTRACK_ON_LEN);
+    return 0;
+}
+
+static int mode_conntrack_off(void) {
+    char b1[64], b2[64], b3[64], b4[64], b5[64];
+    pp_get("conntrack_backup_max", b1, sizeof b1);
+    pp_get("conntrack_backup_tcp_est", b2, sizeof b2);
+    pp_get("conntrack_backup_tcp_tw", b3, sizeof b3);
+    pp_get("conntrack_backup_udp", b4, sizeof b4);
+    pp_get("conntrack_backup_udp_stream", b5, sizeof b5);
+    if (!b1[0] && !b2[0] && !b3[0] && !b4[0] && !b5[0]) {
+        write_log("ConnTrack: no backup", "SKIP");
+        return 0;
+    }
+    static const char *pairs[][2] = {
+        {"max", "nf_conntrack_max"},
+        {"tcp_est", "nf_conntrack_tcp_timeout_established"},
+        {"tcp_tw", "nf_conntrack_tcp_timeout_time_wait"},
+        {"udp", "nf_conntrack_udp_timeout"},
+        {"udp_stream", "nf_conntrack_udp_timeout_stream"},
+    };
+    for (size_t i = 0; i < sizeof pairs / sizeof pairs[0]; i++) {
+        char k[96], v[64], path[160];
+        snprintf(k, sizeof k, "conntrack_backup_%s", pairs[i][0]);
+        if (pp_get(k, v, sizeof v) && v[0]) {
+            snprintf(path, sizeof path, "/proc/sys/net/netfilter/%s", pairs[i][1]);
+            write_sysfile(path, v);
+        }
+    }
+    write_log("ConnTrack: restored kernel defaults", "SUCCESS");
+    return 0;
+}
+
+static int irq_write_mask(const char *mask) {
+    char p[PATH_MAX];
+    pp_path(p, sizeof p, "/proc/interrupts");
+    FILE *f = fopen(p, "r");
+    if (!f) return 0;
+    char line[1024];
+    int failed = 0;
+    while (fgets(line, sizeof line, f)) {
+        if (!pp_strcasestr(line, "wlan") && !pp_strcasestr(line, "rmnet") &&
+            !pp_strcasestr(line, "ccmni"))
+            continue;
+        const char *c = line;
+        while (isspace((unsigned char)*c)) c++;
+        char num[32];
+        int i = 0;
+        while (c[i] && c[i] != ':' && i < 30) {
+            num[i] = c[i];
+            i++;
+        }
+        num[i] = 0;
+        if (!i || c[i] != ':') continue;
+        char path[128];
+        snprintf(path, sizeof path, "/proc/irq/%s/smp_affinity", num);
+        if (write_sysfile(path, mask) != 0) failed = 1;
+    }
+    fclose(f);
     return failed;
 }
 
-static void cmd_ksoft(int boost) {
-    const char *comms[] = {"ksoftirqd/0", "ksoftirqd/1", "ksoftirqd/2", "ksoftirqd/3",
-                           "ksoftirqd/4", "ksoftirqd/5", "ksoftirqd/6", "ksoftirqd/7", NULL};
-    int failed = renice_procs(comms, boost ? -20 : 0);
-    write_log(boost ? "Boosted ksoftirqd priority" : "Restored ksoftirqd priority to default",
-              failed ? "FAILED" : "SUCCESS");
+static long cpu_present_max(void) {
+    char present[64];
+    if (read_first_line("/sys/devices/system/cpu/present", present, sizeof present) != 0)
+        return 0;
+    char *dash = strchr(present, '-');
+    return strtol(dash ? dash + 1 : present, NULL, 10);
 }
 
-static void boost_rild_netd(void) {
-    const char *comms[] = {"rild", "netd", NULL};
-    renice_procs(comms, -10);
+static int mode_irq_affinity(void) {
+    long cpu = cpu_present_max();
+    const char *mask = (cpu >= 7) ? "c0" : (cpu >= 3) ? "c" : "3";
+    int failed = irq_write_mask(mask);
+    write_logf("Set IRQ affinity to mask %s", failed ? "FAILED" : "SUCCESS", mask);
+    return 0;
 }
 
-static int lookup_uid(const char *pkg, char *uid, size_t len) {
-    char out[512];
-    cmd_out(out, sizeof(out), "pm list packages -U 2>/dev/null | grep -E '^package:%s '", pkg);
-    char *u = strstr(out, "uid:");
-    if (!u) { uid[0] = 0; return -1; }
-    sscanf(u + 4, "%63s", uid);
-    return uid[0] ? 0 : -1;
+static int mode_unirq_affinity(void) {
+    int failed = irq_write_mask("ff");
+    write_log("Restored IRQ affinity to all cores", failed ? "FAILED" : "SUCCESS");
+    return 0;
 }
 
-static void apply_boost_apps(void) {
-    char buf[8192];
-    if (read_list(MODDIR "/boost_apps.txt", buf, sizeof(buf)) != 0) return;
-
-    int use_dscp = (run_cmd("iptables -t mangle -A OUTPUT -m owner --uid-owner 99999 -j DSCP --set-dscp 46") == 0);
-    if (use_dscp)
-        run_cmd("iptables -t mangle -D OUTPUT -m owner --uid-owner 99999 -j DSCP --set-dscp 46");
-
-    int count = 0;
-    char uid[64];
-    char *save = NULL;
-    for (char *pkg = strtok_r(buf, ",", &save); pkg; pkg = strtok_r(NULL, ",", &save)) {
-        if (!pkg[0]) continue;
-        if (lookup_uid(pkg, uid, sizeof(uid)) != 0) continue;
-        if (use_dscp) {
-            run_cmd("iptables  -t mangle -I OUTPUT -m owner --uid-owner %s -j DSCP --set-dscp 46", uid);
-            run_cmd("ip6tables -t mangle -I OUTPUT -m owner --uid-owner %s -j DSCP --set-dscp 46", uid);
-        } else {
-            run_cmd("iptables  -t mangle -I OUTPUT -m owner --uid-owner %s -j MARK --set-mark 0x40000000/0x40000000", uid);
-            run_cmd("ip6tables -t mangle -I OUTPUT -m owner --uid-owner %s -j MARK --set-mark 0x40000000/0x40000000", uid);
-        }
-        count++;
-    }
-    if (count > 0) {
-        char msg[96];
-        snprintf(msg, sizeof(msg), "Prioritized traffic for %d boosted apps", count);
-        write_log(msg, "SUCCESS");
-    }
+static int mode_boost_ksoft(void) {
+    int failed = ksoft_renice(-20);
+    write_log("Boosted ksoftirqd priority", failed ? "FAILED" : "SUCCESS");
+    return 0;
 }
 
-static void cmd_hw_tweak(void) {
-    int cpus = cpu_last();
-    const char *mask = cpus >= 7 ? "ff" : (cpus >= 3 ? "f" : "3");
+static int mode_unboost_ksoft(void) {
+    int failed = ksoft_renice(0);
+    write_log("Restored ksoftirqd priority to default", failed ? "FAILED" : "SUCCESS");
+    return 0;
+}
 
-    write_log("Set rps_sock_flow_entries",
-        write_proc("/proc/sys/net/core/rps_sock_flow_entries", "32768") == 0 ? "SUCCESS" : "FAILED");
+static int mode_hw_tweak(void) {
+    long cpu = cpu_present_max();
+    const char *mask = (cpu >= 7) ? "ff" : (cpu >= 3) ? "f" : "3";
+
+    if (write_sysfile("/proc/sys/net/core/rps_sock_flow_entries", "32768") == 0)
+        write_log("Set rps_sock_flow_entries", "SUCCESS");
+    else
+        write_log("Set rps_sock_flow_entries", "FAILED");
 
     DIR *d = opendir("/sys/class/net");
     if (d) {
         struct dirent *e;
-        char base[256], q[340];
+        char qdir[PATH_MAX + 64], fpath[PATH_MAX + 512];
         while ((e = readdir(d))) {
             const char *n = e->d_name;
-            if (!strncmp(n, "lo", 2) || !strncmp(n, "dummy", 5) || !strncmp(n, "ifb", 3)) continue;
-            snprintf(base, sizeof(base), "/sys/class/net/%s/queues", n);
-            DIR *qd = opendir(base);
-            if (!qd) continue;
+            if (!strncmp(n, "lo", 2) || !strncmp(n, "dummy", 5) || !strncmp(n, "ifb", 3))
+                continue;
+            snprintf(qdir, sizeof qdir, "/sys/class/net/%s/queues", n);
+            DIR *q = opendir(qdir);
+            if (!q) continue;
             struct dirent *qe;
-            while ((qe = readdir(qd))) {
+            while ((qe = readdir(q))) {
                 if (!strncmp(qe->d_name, "rx-", 3)) {
-                    snprintf(q, sizeof(q), "%s/%s/rps_cpus", base, qe->d_name);
-                    write_proc(q, mask);
-                    snprintf(q, sizeof(q), "%s/%s/rps_flow_cnt", base, qe->d_name);
-                    write_proc(q, "4096");
+                    snprintf(fpath, sizeof fpath, "%s/%s/rps_cpus", qdir, qe->d_name);
+                    write_sysfile(fpath, mask);
+                    snprintf(fpath, sizeof fpath, "%s/%s/rps_flow_cnt", qdir, qe->d_name);
+                    write_sysfile(fpath, "4096");
                 } else if (!strncmp(qe->d_name, "tx-", 3)) {
-                    snprintf(q, sizeof(q), "%s/%s/xps_cpus", base, qe->d_name);
-                    write_proc(q, mask);
+                    snprintf(fpath, sizeof fpath, "%s/%s/xps_cpus", qdir, qe->d_name);
+                    write_sysfile(fpath, mask);
                 }
             }
-            closedir(qd);
+            closedir(q);
         }
         closedir(d);
     }
-    { char msg[96]; snprintf(msg, sizeof(msg), "Applied CPU mask %s to RPS/XPS queues", mask); write_log(msg, "SUCCESS"); }
+    write_logf("Applied CPU mask %s to RPS/XPS queues", "SUCCESS", mask);
 
-    apply_boost_apps();
+    char bpath[PATH_MAX + 64];
+    snprintf(bpath, sizeof bpath, "%s/boost_apps.txt", g_moddir);
+    if (access(bpath, F_OK) == 0) {
+        int use_dscp =
+            (sh("iptables -t mangle -A OUTPUT -m owner --uid-owner 99999 -j DSCP --set-dscp 46 2>/dev/null") == 0);
+        if (use_dscp)
+            sh("iptables -t mangle -D OUTPUT -m owner --uid-owner 99999 -j DSCP --set-dscp 46 2>/dev/null");
+
+        FILE *bf = fopen(bpath, "r");
+        if (bf) {
+            char buf[8192];
+            size_t r = fread(buf, 1, sizeof buf - 1, bf);
+            buf[r] = 0;
+            fclose(bf);
+            int boosted = 0;
+            char *save = NULL;
+            for (char *tok = strtok_r(buf, ", \t\r\n", &save); tok;
+                 tok = strtok_r(NULL, ", \t\r\n", &save)) {
+                long uid = pm_uid(tok);
+                if (uid < 0) continue;
+                if (use_dscp) {
+                    shf("iptables -t mangle -I OUTPUT -m owner --uid-owner %ld -j DSCP --set-dscp 46 2>/dev/null", uid);
+                    shf("ip6tables -t mangle -I OUTPUT -m owner --uid-owner %ld -j DSCP --set-dscp 46 2>/dev/null", uid);
+                } else {
+                    shf("iptables -t mangle -I OUTPUT -m owner --uid-owner %ld -j MARK --set-mark 0x40000000/0x40000000 2>/dev/null", uid);
+                    shf("ip6tables -t mangle -I OUTPUT -m owner --uid-owner %ld -j MARK --set-mark 0x40000000/0x40000000 2>/dev/null", uid);
+                }
+                boosted++;
+            }
+            if (boosted > 0)
+                write_logf("Prioritized traffic for %d boosted apps", "SUCCESS", boosted);
+        }
+    }
+    return 0;
 }
 
-static void cmd_init_tc(void) {
-    char iface[64];
-    get_active_iface(iface, sizeof(iface));
-    if (!iface[0]) { write_log("Failed to find active interface for TC", "FAILED"); return; }
+static int mode_init_tc(void) {
+    char ifc[64];
+    route_iface(ifc, sizeof ifc);
+    if (!ifc[0]) {
+        write_log("Failed to find active interface for TC", "FAILED");
+        return 0;
+    }
 
-    char act[32] = "";
-    read_first_line(MODDIR "/.current_auto_act", act, sizeof(act));
-    if (!act[0]) snprintf(act, sizeof(act), "default");
-    int is_game = !strcmp(act, "game");
+    char act[32];
+    if (!pp_get("auto_act", act, sizeof act) || !act[0])
+        snprintf(act, sizeof act, "default");
+    int isgame = strcmp(act, "game") == 0;
 
-    int limit  = is_game ? 64   : g_fq_limit;
-    int flows  = is_game ? 128  : g_fq_flows;
-    const char *interval = is_game ? "10ms" : "100ms";
-    const char *target   = is_game ? "1ms"  : "5ms";
-    int txq   = is_game ? 500 : 1000;
+    int limit, flows, txq;
+    const char *interval, *target;
+    if (isgame) {
+        limit = 64; flows = 128; interval = "10ms"; target = "1ms"; txq = 500;
+    } else {
+        const char *e = getenv("PP_FQ_LIMIT");
+        limit = e ? atoi(e) : 1000;
+        e = getenv("PP_FQ_FLOWS");
+        flows = e ? atoi(e) : 1024;
+        interval = "100ms"; target = "5ms"; txq = 1000;
+    }
 
-    run_cmd("tc qdisc del dev %s root", iface);
-    int has_cake = (run_cmd("tc qdisc add dev lo root cake") == 0);
+    shf("tc qdisc del dev %s root 2>/dev/null", ifc);
+    int has_cake = (sh("tc qdisc add dev lo root cake >/dev/null 2>&1") == 0);
     if (has_cake) {
-        run_cmd("tc qdisc del dev lo root");
+        sh("tc qdisc del dev lo root >/dev/null 2>&1");
         write_log("Detected CAKE qdisc support", "SUCCESS");
     } else {
         write_log("CAKE not found. Falling back to fq_codel", "SUCCESS");
     }
 
     if (has_cake) {
-        if (is_game) {
-            if (run_cmd("tc qdisc add dev %s root handle 1: cake besteffort nat diffserv4 bandwidth 50mbit raw", iface) != 0)
-                run_cmd("tc qdisc add dev %s root handle 1: cake besteffort nat", iface);
-        } else {
-            run_cmd("tc qdisc add dev %s root handle 1: cake besteffort nat", iface);
-        }
-        run_cmd("tc filter add dev %s parent 1: protocol ip   prio 1 handle 0x40000000/0x40000000 fw flowid 1:1", iface);
-        run_cmd("tc filter add dev %s parent 1: protocol ipv6 prio 1 handle 0x40000000/0x40000000 fw flowid 1:1", iface);
-        run_cmd("tc filter add dev %s parent 1: protocol ip   prio 2 u32 match ip tos 0xb8 0xfc flowid 1:1", iface);
-        char msg[128];
-        snprintf(msg, sizeof(msg), "Applied CAKE qdisc on %s (mode: %s)", iface, act);
-        write_log(msg, "SUCCESS");
+        if (isgame)
+            shf("tc qdisc add dev %s root handle 1: cake besteffort nat diffserv4 bandwidth 50mbit raw 2>/dev/null || "
+                "tc qdisc add dev %s root handle 1: cake besteffort nat 2>/dev/null", ifc, ifc);
+        else
+            shf("tc qdisc add dev %s root handle 1: cake besteffort nat 2>/dev/null", ifc);
+        shf("tc filter add dev %s parent 1: protocol ip prio 1 handle 0x40000000/0x40000000 fw flowid 1:1 2>/dev/null", ifc);
+        shf("tc filter add dev %s parent 1: protocol ipv6 prio 1 handle 0x40000000/0x40000000 fw flowid 1:1 2>/dev/null", ifc);
+        shf("tc filter add dev %s parent 1: protocol ip prio 2 u32 match ip tos 0xb8 0xfc flowid 1:1 2>/dev/null", ifc);
+        write_logf("Applied CAKE qdisc on %s (mode: %s)", "SUCCESS", ifc, act);
     } else {
-        run_cmd("tc qdisc add dev %s root handle 1: prio bands 3 priomap 1 2 2 2 1 2 0 0 1 1 1 1 1 1 1 1", iface);
-        run_cmd("tc qdisc add dev %s parent 1:1 handle 10: fq_codel quantum 1514 limit %d flows %d interval %s target %s noecn",
-                iface, limit, flows, interval, target);
-        run_cmd("tc qdisc add dev %s parent 1:2 handle 20: fq_codel quantum 1514 limit %d flows %d interval 100ms target 5ms noecn",
-                iface, limit, flows);
-        run_cmd("tc qdisc add dev %s parent 1:3 handle 30: fq_codel quantum 1514 limit %d flows %d interval 100ms target 10ms noecn",
-                iface, limit * 4, flows);
-        run_cmd("tc filter add dev %s parent 1: protocol ip   prio 1 handle 0x40000000/0x40000000 fw flowid 1:1", iface);
-        run_cmd("tc filter add dev %s parent 1: protocol ipv6 prio 1 handle 0x40000000/0x40000000 fw flowid 1:1", iface);
-        run_cmd("tc filter add dev %s parent 1: protocol ip   prio 2 u32 match ip tos 0xb8 0xfc flowid 1:1", iface);
-        run_cmd("tc filter add dev %s parent 1: protocol ip   prio 3 u32 match ip protocol 6 0xff match u8 0x10 0xff at 33 flowid 1:1", iface);
-        char msg[192];
-        snprintf(msg, sizeof(msg), "Applied fq_codel on %s (mode: %s, limit: %d, target: %s)", iface, act, limit, target);
-        write_log(msg, "SUCCESS");
+        shf("tc qdisc add dev %s root handle 1: prio bands 3 priomap 1 2 2 2 1 2 0 0 1 1 1 1 1 1 1 1 2>/dev/null", ifc);
+        shf("tc qdisc add dev %s parent 1:1 handle 10: fq_codel quantum 1514 limit %d flows %d interval %s target %s noecn 2>/dev/null",
+            ifc, limit, flows, interval, target);
+        shf("tc qdisc add dev %s parent 1:2 handle 20: fq_codel quantum 1514 limit %d flows %d interval 100ms target 5ms noecn 2>/dev/null",
+            ifc, limit, flows);
+        shf("tc qdisc add dev %s parent 1:3 handle 30: fq_codel quantum 1514 limit %d flows %d interval 100ms target 10ms noecn 2>/dev/null",
+            ifc, limit * 4, flows);
+        shf("tc filter add dev %s parent 1: protocol ip prio 1 handle 0x40000000/0x40000000 fw flowid 1:1 2>/dev/null", ifc);
+        shf("tc filter add dev %s parent 1: protocol ipv6 prio 1 handle 0x40000000/0x40000000 fw flowid 1:1 2>/dev/null", ifc);
+        shf("tc filter add dev %s parent 1: protocol ip prio 2 u32 match ip tos 0xb8 0xfc flowid 1:1 2>/dev/null", ifc);
+        shf("tc filter add dev %s parent 1: protocol ip prio 3 u32 match ip protocol 6 0xff match u8 0x10 0xff at 33 flowid 1:1 2>/dev/null", ifc);
+        write_logf("Applied fq_codel on %s (mode: %s, limit: %d, target: %s)", "SUCCESS",
+                   ifc, act, limit, target);
     }
-    run_cmd("ifconfig %s txqueuelen %d", iface, txq);
-    run_cmd("ip link set %s txqueuelen %d", iface, txq);
+    set_txqueuelen(ifc, txq);
+    return 0;
 }
 
-/* ===================== ENGINE ===================== */
-
-static void clear_all_tc(void) {
-    DIR *d = opendir("/sys/class/net");
-    if (!d) return;
-    struct dirent *e;
-    while ((e = readdir(d))) {
-        if (!strcmp(e->d_name, "lo")) continue;
-        run_cmd("tc qdisc del dev %s root", e->d_name);
-    }
-    closedir(d);
-}
-
-static void cmd_engine(const char *event) {
-    if (acquire_lock() != 0) return;
+static int mode_engine(const char *event) {
+    if (!acquire_lock()) return 0;
     atexit(release_lock);
 
-    char iface[64];
-    get_active_iface(iface, sizeof(iface));
+    char ifc[64];
+    route_iface(ifc, sizeof ifc);
 
-    char prev_state[160] = "", prev_profile[80] = "", prev_iface[80] = "";
-    read_first_line(STATE_FILE, prev_state, sizeof(prev_state));
-    char *c = strchr(prev_state, ':');
-    if (c) { *c = 0; snprintf(prev_profile, sizeof(prev_profile), "%s", prev_state);
-             snprintf(prev_iface, sizeof(prev_iface), "%s", c + 1); }
-    else snprintf(prev_profile, sizeof(prev_profile), "%s", prev_state);
-
-    if (!iface[0] || !strcmp(iface, "lo")) {
-        if (strcmp(prev_profile, "OFFLINE") != 0) {
-            write_file(STATE_FILE, "OFFLINE:none");
-            clear_all_tc();
-            char msg[256];
-            snprintf(msg, sizeof(msg), "Network OFFLINE detected (Event: %s), cleared TC rules", event);
-            write_log(msg, "SUCCESS");
+    char prev_state[128];
+    if (!pp_get("engine_state", prev_state, sizeof prev_state)) prev_state[0] = 0;
+    char prev_profile[64] = "", prev_iface[64] = "";
+    {
+        char *c = strchr(prev_state, ':');
+        if (c) {
+            *c = 0;
+            snprintf(prev_iface, sizeof prev_iface, "%s", c + 1);
         }
-        return;
+        snprintf(prev_profile, sizeof prev_profile, "%s", prev_state);
     }
 
-    int rtt, loss, jit;
-    get_network_health(&rtt, &loss, &jit);
-    double retrans = get_tcp_retransmit_rate();
-    int score = compute_network_score(rtt, loss, jit, retrans);
+    if (!ifc[0] || strcmp(ifc, "lo") == 0) {
+        if (strcmp(prev_profile, "OFFLINE") != 0) {
+            pp_set("engine_state", "OFFLINE:none");
+            DIR *d = opendir("/sys/class/net");
+            if (d) {
+                struct dirent *e;
+                while ((e = readdir(d))) {
+                    if (strcmp(e->d_name, "lo") == 0) continue;
+                    shf("tc qdisc del dev %s root 2>/dev/null", e->d_name);
+                }
+                closedir(d);
+            }
+            write_logf("Network OFFLINE detected (Event: %s), cleared TC rules", "SUCCESS", event);
+        }
+        return 0;
+    }
 
-    int rssi = 0, freq = 0;
+    char health[32], rtt_s[16] = "", loss_s[16] = "", jitter_s[16] = "";
+    get_network_health(health, sizeof health);
+    {
+        char *save = NULL;
+        char *t = strtok_r(health, ":", &save);
+        if (t) snprintf(rtt_s, sizeof rtt_s, "%s", t);
+        t = strtok_r(NULL, ":", &save);
+        if (t) snprintf(loss_s, sizeof loss_s, "%s", t);
+        t = strtok_r(NULL, ":", &save);
+        if (t) snprintf(jitter_s, sizeof jitter_s, "%s", t);
+    }
+    long rtt = strtol(rtt_s, NULL, 10);
+    long loss = strtol(loss_s, NULL, 10);
+    long jitter = strtol(jitter_s, NULL, 10);
+    char retrans[24];
+    get_tcp_retransmit_rate(retrans, sizeof retrans);
+    long score = compute_network_score(rtt, loss, jitter, retrans);
+
+    long rssi = 0;
     const char *band = "NONE";
-    if (!strncmp(iface, "wlan", 4)) {
-        get_wifi_info(iface, &rssi, &freq);
+    char wifi_info[128];
+    if (strncmp(ifc, "wlan", 4) == 0) {
+        get_wifi_info(ifc, wifi_info, sizeof wifi_info);
+        char freq[64] = "0";
+        char *c = strchr(wifi_info, ':');
+        if (c) {
+            *c = 0;
+            snprintf(freq, sizeof freq, "%s", c + 1);
+        }
+        rssi = strtol(wifi_info, NULL, 10);
         band = classify_band(freq);
     }
 
     const char *new_profile =
         (score < 65 || (rssi != 0 && rssi < -80)) ? "WEAK_NETWORK" : "LOW_LATENCY";
-    int iface_changed = strcmp(iface, prev_iface) != 0;
 
-    char pend[128] = "", pend_profile[80] = "";
-    int pend_count = 0;
-    read_first_line(PENDING_FILE, pend, sizeof(pend));
-    char *pc = strchr(pend, ':');
-    if (pc) { *pc = 0; snprintf(pend_profile, sizeof(pend_profile), "%s", pend); pend_count = atoi(pc + 1); }
+    int iface_changed = strcmp(ifc, prev_iface) != 0;
+
+    char pending[128];
+    if (!pp_get("pending_profile", pending, sizeof pending)) pending[0] = 0;
+    char pending_profile[64] = "";
+    long pending_count = 0;
+    {
+        char *c = strchr(pending, ':');
+        if (c) {
+            *c = 0;
+            pending_count = strtol(c + 1, NULL, 10);
+        }
+        snprintf(pending_profile, sizeof pending_profile, "%s", pending);
+    }
 
     int should_apply = 0;
-    if (iface_changed || !prev_profile[0] ||
-        !strcmp(prev_profile, "NONE") || !strcmp(prev_profile, "OFFLINE")) {
+    if (iface_changed || !prev_profile[0] || strcmp(prev_profile, "NONE") == 0 ||
+        strcmp(prev_profile, "OFFLINE") == 0) {
         should_apply = 1;
-        unlink(PENDING_FILE);
-    } else if (!strcmp(new_profile, prev_profile)) {
-        unlink(PENDING_FILE);
-    } else if (!strcmp(new_profile, pend_profile)) {
-        pend_count++;
-        if (pend_count >= 2) { should_apply = 1; unlink(PENDING_FILE); }
-        else { char v[96]; snprintf(v, sizeof(v), "%s:%d", new_profile, pend_count); write_file(PENDING_FILE, v); }
-    } else {
-        char v[96]; snprintf(v, sizeof(v), "%s:1", new_profile); write_file(PENDING_FILE, v);
-    }
-    if (!should_apply) return;
-
-    { char m[160]; snprintf(m, sizeof(m), "Engine Triggered by Event: %s", event); write_log(m, "SUCCESS"); }
-    { char m[512];
-      snprintf(m, sizeof(m), "Metrics - IFACE: %s | RTT: %dms | LOSS: %d%% | JITTER: %dms | RETRANS: %.1f%% | SCORE: %d | RSSI: %d | BAND: %s",
-               iface, rtt, loss, jit, retrans, score, rssi, band);
-      write_log(m, "SUCCESS"); }
-    { char m[192];
-      snprintf(m, sizeof(m), "Switching Network Profile to: %s (was: %s)", new_profile,
-               prev_profile[0] ? prev_profile : "NONE");
-      write_log(m, "SUCCESS"); }
-
-    { char v[160]; snprintf(v, sizeof(v), "%s:%s", new_profile, iface); write_file(STATE_FILE, v); }
-
-    int txq;
-    if (!strcmp(new_profile, "WEAK_NETWORK")) { g_fq_limit = 256; g_fq_flows = 32; txq = 1000; }
-    else { g_fq_limit = 1024; g_fq_flows = 1024; txq = 3000; }
-
-    if (!strcmp(band, "24GHZ")) txq += 1000;
-    else if (!strcmp(band, "6GHZ") && txq > 1500) txq = 1500;
-
-    int mtu = 0;
-    char last_mtu_path[256], mbuf[32];
-    snprintf(last_mtu_path, sizeof(last_mtu_path), MODDIR "/.last_mtu_%s", iface);
-    if (iface_changed) mtu = probe_mtu(iface);
-    else if (read_first_line(last_mtu_path, mbuf, sizeof(mbuf)) == 0 && mbuf[0]) mtu = atoi(mbuf);
-    if (mtu <= 0) mtu = probe_mtu(iface);
-    { char v[16]; snprintf(v, sizeof(v), "%d", mtu); write_file(last_mtu_path, v); }
-
-    run_cmd("ip link set dev %s mtu %d", iface, mtu);
-    { char m[128]; snprintf(m, sizeof(m), "Set MTU for %s to %d", iface, mtu); write_log(m, "SUCCESS"); }
-
-    run_cmd("ifconfig %s txqueuelen %d", iface, txq);
-    run_cmd("ip link set %s txqueuelen %d", iface, txq);
-    { char m[192]; snprintf(m, sizeof(m), "Set TxQueueLen for %s to %d (band: %s)", iface, txq, band); write_log(m, "SUCCESS"); }
-
-    run_mode("--hw-tweak", NULL);
-
-    if (cfg_is("tc.txt", "1"))
-        run_mode("--init-tc", NULL);
-
-    if (cfg_is("wifips.txt", "1") && !strncmp(iface, "wlan", 4))
-        run_mode("--wifi-ps-off", NULL);
-}
-
-/* ===================== AUTO DETECT ===================== */
-
-static void set_best_tcp(const char *a, const char *b, const char *cc) {
-    const char *algos[4] = {a, b, cc, NULL};
-    char avail[256], pad[300];
-    cmd_out(avail, sizeof(avail), "cat /proc/sys/net/ipv4/tcp_available_congestion_control");
-    snprintf(pad, sizeof(pad), " %s ", avail);
-    char tried[128] = "";
-    for (int i = 0; algos[i]; i++) {
-        if (i) strncat(tried, " ", sizeof(tried) - strlen(tried) - 1);
-        strncat(tried, algos[i], sizeof(tried) - strlen(tried) - 1);
-        char pat[64];
-        snprintf(pat, sizeof(pat), " %s ", algos[i]);
-        if (strstr(pad, pat) && write_sysctl("net.ipv4.tcp_congestion_control", algos[i]) == 0) {
-            char msg[128];
-            snprintf(msg, sizeof(msg), "Auto-Detect: TCP optimized to %s", algos[i]);
-            write_log(msg, "SUCCESS");
-            return;
+        pp_del("pending_profile");
+    } else if (strcmp(new_profile, prev_profile) == 0) {
+        pp_del("pending_profile");
+    } else if (strcmp(new_profile, pending_profile) == 0) {
+        pending_count++;
+        if (pending_count >= 2) {
+            should_apply = 1;
+            pp_del("pending_profile");
+        } else {
+            char b[96];
+            snprintf(b, sizeof b, "%s:%ld", new_profile, pending_count);
+            pp_set("pending_profile", b);
         }
+    } else {
+        char b[96];
+        snprintf(b, sizeof b, "%s:1", new_profile);
+        pp_set("pending_profile", b);
     }
-    char msg[192];
-    snprintf(msg, sizeof(msg), "Auto-Detect: Failed to set TCP (tried: %s)", tried);
-    write_log(msg, "FAILED");
+
+    if (!should_apply) return 0;
+
+    write_logf("Engine Triggered by Event: %s", "SUCCESS", event);
+    write_logf("Metrics - IFACE: %s | RTT: %ldms | LOSS: %ld%% | JITTER: %ldms | RETRANS: %s%% | SCORE: %ld | RSSI: %ld | BAND: %s",
+               "SUCCESS", ifc, rtt, loss, jitter, retrans, score, rssi, band);
+    write_logf("Switching Network Profile to: %s (was: %s)", "SUCCESS",
+               new_profile, prev_profile[0] ? prev_profile : "NONE");
+
+    {
+        char b[128];
+        snprintf(b, sizeof b, "%s:%s", new_profile, ifc);
+        pp_set("engine_state", b);
+    }
+
+    long txq;
+    if (strcmp(new_profile, "WEAK_NETWORK") == 0) {
+        setenv("PP_FQ_LIMIT", "256", 1);
+        setenv("PP_FQ_FLOWS", "32", 1);
+        txq = 1000;
+    } else {
+        setenv("PP_FQ_LIMIT", "1024", 1);
+        setenv("PP_FQ_FLOWS", "1024", 1);
+        txq = 3000;
+    }
+    if (strcmp(band, "24GHZ") == 0) txq += 1000;
+    else if (strcmp(band, "6GHZ") == 0 && txq > 1500) txq = 1500;
+
+    long mtu;
+    char mk[192], mlast[32];
+    snprintf(mk, sizeof mk, "mtu_last_%s", ifc);
+    if (iface_changed) {
+        mtu = probe_mtu(ifc);
+    } else if (pp_get(mk, mlast, sizeof mlast) && mlast[0]) {
+        mtu = strtol(mlast, NULL, 10);
+    } else {
+        mtu = probe_mtu(ifc);
+    }
+    {
+        char b[32];
+        snprintf(b, sizeof b, "%ld", mtu);
+        pp_set(mk, b);
+    }
+
+    set_mtu(ifc, (int)mtu);
+    write_logf("Set MTU for %s to %ld", "SUCCESS", ifc, mtu);
+
+    set_txqueuelen(ifc, (int)txq);
+    write_logf("Set TxQueueLen for %s to %ld (band: %s)", "SUCCESS", ifc, txq, band);
+
+    call_mode("--hw-tweak", mode_hw_tweak);
+
+    {
+        char tcv[8];
+        if (pp_get("tc", tcv, sizeof tcv) && strcmp(tcv, "1") == 0)
+            call_mode("--init-tc", mode_init_tc);
+    }
+
+    /* Jaga Wi-Fi power save tetap mati melewati reconnect/roaming
+     * (driver hampir selalu menyalakannya kembali saat link naik). */
+    {
+        char wps[8];
+        if (pp_get("wifips", wps, sizeof wps) && strcmp(wps, "1") == 0 &&
+            strncmp(ifc, "wlan", 4) == 0)
+            call_mode("--wifi-ps-off", mode_wifi_ps_off);
+    }
+    return 0;
 }
 
-static int in_game_list(const char *pkg) {
-    FILE *f = fopen(GAME_LIST, "r");
+static int game_list_has(const char *pkg) {
+    FILE *f = fopen(g_gamelist, "r");
     if (!f) return 0;
     char line[512];
-    while (fgets(line, sizeof(line), f)) {
-        char *nl = strpbrk(line, "\r\n"); if (nl) *nl = 0;
-        if (!strcmp(line, pkg)) { fclose(f); return 1; }
+    size_t pl = strlen(pkg);
+    while (fgets(line, sizeof line, f)) {
+        trim_nl(line);
+        if (strncmp(line, pkg, pl) == 0 && line[pl] == 0) {
+            fclose(f);
+            return 1;
+        }
     }
     fclose(f);
     return 0;
 }
 
-static int matches_any(const char *pkg, const char *const *list) {
-    for (int i = 0; list[i]; i++)
-        if (strcasestr(pkg, list[i])) return 1;
+static int mode_auto_detect(void) {
+    char cur[32];
+    if (!pp_get("auto_act", cur, sizeof cur) || !cur[0])
+        snprintf(cur, sizeof cur, "default");
+
+    char ifc[64];
+    route_iface(ifc, sizeof ifc);
+    if (!ifc[0]) snprintf(ifc, sizeof ifc, "wlan0");
+
+    long now = (long)time(NULL);
+    char rxp[PATH_MAX];
+    snprintf(rxp, sizeof rxp, "/sys/class/net/%s/statistics/rx_bytes", ifc);
+    char rxs[64];
+    long rx_now = 0;
+    if (read_first_line(rxp, rxs, sizeof rxs) == 0 && rxs[0])
+        rx_now = strtol(rxs, NULL, 10);
+
+    long speed = 0;
+    char c[160];
+    if (pp_get("auto_rx", c, sizeof c) && c[0]) {
+        char c_rx[64] = "", c_t[64] = "", c_if[64] = "";
+        char *save = NULL;
+        char *t = strtok_r(c, "|", &save);
+        if (t) {
+            snprintf(c_rx, sizeof c_rx, "%s", t);
+            t = strtok_r(NULL, "|", &save);
+            if (t) {
+                snprintf(c_t, sizeof c_t, "%s", t);
+                t = strtok_r(NULL, "|", &save);
+                if (t) snprintf(c_if, sizeof c_if, "%s", t);
+            }
+        }
+        if (strcmp(c_if, ifc) == 0 && c_rx[0] && c_t[0]) {
+            long dt = now - strtol(c_t, NULL, 10);
+            if (dt >= 2 && dt <= 20) {
+                long diff = rx_now - strtol(c_rx, NULL, 10);
+                if (diff < 0) diff = 0;
+                speed = diff / dt;
+            }
+        }
+    }
+    {
+        char b[160];
+        snprintf(b, sizeof b, "%ld|%ld|%s", rx_now, now, ifc);
+        pp_set("auto_rx", b);
+    }
+
+    /* Sampling rx sudah jendela 2-20 s: trafik deras adalah bukti
+     * pemakaian nyata, tidak perlu konfirmasi tambahan. */
+    if (speed > 512000) {
+        if (strcmp(cur, "download") != 0) {
+            pp_set("auto_act", "download");
+            write_logf("Auto-Detect: Activity changed to download (Speed: %ldKB/s)",
+                       "SUCCESS", speed / 1024);
+            call_mode("--download", mode_download);
+            {
+                const char *a[] = {"bbr", "cubic", "reno"};
+                set_best_tcp(a, 3);
+            }
+            call_mode("--nic-on", mode_nic_on);
+            call_mode("--unirq-affinity", mode_unirq_affinity);
+            call_mode("--unboost-ksoft", mode_unboost_ksoft);
+        }
+        return 0;
+    }
+
+    char pkg[512];
+    current_fg_pkg(pkg, sizeof pkg);
+    if (!pkg[0]) {
+        /* Layar utama / tanpa app — tweak terakhir dibiarkan; app baru
+         * akan terdeteksi sebagai transisi pada tick berikutnya. */
+        pp_set("auto_pkg", "");
+        return 0;
+    }
+
+    char new_act[32];
+    if (game_list_has(pkg)) {
+        snprintf(new_act, sizeof new_act, "game");
+    } else if (!classify_pkg(pkg, new_act, sizeof new_act)) {
+        snprintf(new_act, sizeof new_act, "default");
+    }
+
+    /* App sama dengan tick sebelumnya — tidak ada pekerjaan ulang. */
+    char last_pkg[512];
+    pp_get("auto_pkg", last_pkg, sizeof last_pkg);
+    if (strcmp(pkg, last_pkg) == 0) return 0;
+
+    /* Konfirmasi pemakaian nyata: app harus masih di foreground 5 detik
+     * kemudian — buka-lalu-tutup tidak pernah sampai ke apply. */
+    sleep(5);
+    char pkg2[512];
+    current_fg_pkg(pkg2, sizeof pkg2);
+    if (strcmp(pkg2, pkg) != 0) return 0;
+    pp_set("auto_pkg", pkg);
+
+    /* Kategori sama (mis. WA -> TikTok, dua-duanya social): tweak yang
+     * berjalan sudah pas — cukup satu baris log, tanpa re-apply. */
+    if (strcmp(new_act, cur) == 0) {
+        write_logf("Auto-Detect: App %s still in category '%s'", "SKIP", pkg, new_act);
+        return 0;
+    }
+
+    pp_set("auto_act", new_act);
+    write_logf("Auto-Detect: Activity changed to %s (App: %s, Speed: %ldKB/s)",
+               "SUCCESS", new_act, pkg, speed / 1024);
+
+    call_preset(new_act);
+
+    if (strcmp(new_act, "game") == 0) {
+        {
+            const char *a[] = {"westwood", "bbr", "cubic"};
+            set_best_tcp(a, 3);
+        }
+        call_mode("--nic-offload", mode_nic_offload);
+        call_mode("--irq-affinity", mode_irq_affinity);
+        call_mode("--boost-ksoft", mode_boost_ksoft);
+        {
+            const char *pats[] = {"rild", "netd"};
+            cmdlines_renice(pats, 2, -10);
+        }
+        call_mode("--init-tc", mode_init_tc);
+    } else if (strcmp(new_act, "download") == 0 || strcmp(new_act, "streaming") == 0) {
+        {
+            const char *a[] = {"bbr", "cubic", "reno"};
+            set_best_tcp(a, 3);
+        }
+        call_mode("--nic-on", mode_nic_on);
+        call_mode("--unirq-affinity", mode_unirq_affinity);
+        call_mode("--unboost-ksoft", mode_unboost_ksoft);
+    } else {
+        {
+            const char *a[] = {"cubic", "bbr", "reno"};
+            set_best_tcp(a, 3);
+        }
+        call_mode("--nic-on", mode_nic_on);
+        call_mode("--unirq-affinity", mode_unirq_affinity);
+        call_mode("--unboost-ksoft", mode_unboost_ksoft);
+    }
     return 0;
 }
 
-static void get_foreground_app(char *pkg, size_t len) {
-    pkg[0] = 0;
-    char out[8192];
-    cmd_out(out, sizeof(out), "cmd activity stack info 1 0");
-    char *line = out;
-    while (line && *line) {
-        char *eol = strchr(line, '\n');
-        if (eol) *eol = 0;
-        if (strstr(line, ",0") && strstr(line, "=t")) {
-            /* awk -F'[ /]' '{print $4}' */
-            char *save = NULL;
-            char *tok = strtok_r(line, " /", &save);
-            for (int i = 1; tok && i < 4; i++) tok = strtok_r(NULL, " /", &save);
-            if (tok) snprintf(pkg, len, "%s", tok);
-            break;
-        }
-        line = eol ? eol + 1 : NULL;
-    }
+static int mode_auto_on(void) {
+    write_log("Smart Auto Mode Enabled", "SUCCESS");
+    /* State auto lama tidak berlaku — deteksi mulai bersih. */
+    pp_del("auto_act");
+    pp_del("auto_pkg");
+    spawn_bg("--dns-flip", "AUTO_ON");
+    return 0;
 }
 
-static void cmd_auto_detect(void) {
-    char current_act[32] = "";
-    read_first_line(MODDIR "/.current_auto_act", current_act, sizeof(current_act));
-    if (!current_act[0]) snprintf(current_act, sizeof(current_act), "default");
-
-    char iface[64];
-    get_active_iface(iface, sizeof(iface));
-    if (!iface[0]) snprintf(iface, sizeof(iface), "wlan0");
-
-    long now = (long)time(NULL);
-    char rxpath[256], rxb[64];
-    long rx_now = 0;
-    snprintf(rxpath, sizeof(rxpath), "/sys/class/net/%s/statistics/rx_bytes", iface);
-    if (read_first_line(rxpath, rxb, sizeof(rxb)) == 0) rx_now = atol(rxb);
-
-    long speed = 0;
-    char c_rx[64] = "", c_t[64] = "", c_if[64] = "";
-    FILE *f = fopen(MODDIR "/.auto_rx_cache", "r");
-    if (f) {
-        if (fgets(c_rx, sizeof(c_rx), f)) {}
-        if (fgets(c_t, sizeof(c_t), f)) {}
-        if (fgets(c_if, sizeof(c_if), f)) {}
-        fclose(f);
-    }
-    if (c_rx[0] && c_t[0] && c_if[0] && !strcmp(c_if, iface)) {
-        long dt = now - atol(c_t);
-        if (dt >= 2 && dt <= 20) {
-            long diff = rx_now - atol(c_rx);
-            if (diff < 0) diff = 0;
-            speed = diff / dt;
-        }
-    }
-    f = fopen(MODDIR "/.auto_rx_cache", "w");
-    if (f) { fprintf(f, "%ld\n%ld\n%s\n", rx_now, now, iface); fclose(f); }
-
-    char new_act[32] = "", pkg[256] = "";
-    if (speed > 512000) {
-        snprintf(new_act, sizeof(new_act), "download");
-    } else {
-        get_foreground_app(pkg, sizeof(pkg));
-        if (pkg[0]) {
-            static const char *const CAT_STREAM[] = {"tube","netflix","twitch","disney","hulu","spotify","bilibili","viu","iqiyi","music",NULL};
-            static const char *const CAT_BROWSE[] = {"chrome","firefox","opera","edge","brave","ucbrowser",NULL};
-            static const char *const CAT_SOCIAL[] = {"whatsapp","insta","facebook","twitter","tiktok","gram","snap","reddit",NULL};
-            if (in_game_list(pkg)) snprintf(new_act, sizeof(new_act), "game");
-            else if (matches_any(pkg, CAT_STREAM)) snprintf(new_act, sizeof(new_act), "streaming");
-            else if (matches_any(pkg, CAT_BROWSE)) snprintf(new_act, sizeof(new_act), "browsing");
-            else if (matches_any(pkg, CAT_SOCIAL)) snprintf(new_act, sizeof(new_act), "social");
-            else snprintf(new_act, sizeof(new_act), "default");
-        }
-    }
-
-    if (!new_act[0] || !strcmp(new_act, current_act)) {
-        unlink(MODDIR "/.pending_auto_act");
-        return;
-    }
-
-    char pend[96] = "", pend_act[32] = "";
-    int pend_count = 0;
-    read_first_line(MODDIR "/.pending_auto_act", pend, sizeof(pend));
-    char *c = strchr(pend, ':');
-    if (c) { *c = 0; snprintf(pend_act, sizeof(pend_act), "%s", pend); pend_count = atoi(c + 1); }
-    if (!strcmp(pend_act, new_act)) pend_count++;
-    else pend_count = 1;
-
-    if (pend_count < 2) {
-        char v[64]; snprintf(v, sizeof(v), "%s:%d", new_act, pend_count);
-        write_file(MODDIR "/.pending_auto_act", v);
-        return;
-    }
-
-    unlink(MODDIR "/.pending_auto_act");
-    write_file(MODDIR "/.current_auto_act", new_act);
-    { char m[512];
-      snprintf(m, sizeof(m), "Auto-Detect: Activity changed to %s (App: %s, Speed: %ldKB/s)",
-               new_act, pkg[0] ? pkg : "none", speed / 1024);
-      write_log(m, "SUCCESS"); }
-
-    char mode[48];
-    snprintf(mode, sizeof(mode), "--%s", new_act);
-    run_mode(mode, NULL);
-
-    if (!strcmp(new_act, "game")) {
-        set_best_tcp("westwood", "bbr", "cubic");
-        run_mode("--nic-offload", NULL);
-        run_mode("--irq-affinity", NULL);
-        run_mode("--boost-ksoft", NULL);
-        boost_rild_netd();
-        run_mode("--init-tc", NULL);
-    } else if (!strcmp(new_act, "download") || !strcmp(new_act, "streaming")) {
-        set_best_tcp("bbr", "cubic", "reno");
-        run_mode("--nic-on", NULL);
-        run_mode("--unirq-affinity", NULL);
-        run_mode("--unboost-ksoft", NULL);
-    } else {
-        set_best_tcp("cubic", "bbr", "reno");
-        run_mode("--nic-on", NULL);
-        run_mode("--unirq-affinity", NULL);
-        run_mode("--unboost-ksoft", NULL);
-    }
+static void str_lower(char *s) {
+    for (; *s; s++) *s = (char)tolower((unsigned char)*s);
 }
 
-/* ===================== AUTO ON/OFF ===================== */
-
-static void spawn(const char *mode, const char *arg) {
-    pid_t pid = fork();
-    if (pid == 0) {
-        run_mode(mode, arg);
-        exit(0);            /* exit() menjalankan atexit (release lock engine) */
-    }
-}
-
-static void cmd_auto_off(void) {
+static int mode_auto_off(void) {
     write_log("Smart Auto Mode Disabled. Restoring manual configuration...", "SUCCESS");
+    /* State auto tidak berlaku saat mode manual (mencegah deteksi
+     * pertama setelah re-enable meloncat karena state basi). */
+    pp_del("auto_act");
+    pp_del("auto_pkg");
 
-    char preset[64] = "";
-    read_file_trim(MODDIR "/preset.txt", preset, sizeof(preset));
-    if (preset[0]) {
-        for (char *p = preset; *p; p++) *p = tolower((unsigned char)*p);
-        char *sp = strchr(preset, ' '); if (sp) *sp = 0;
-        char mode[80];
-        snprintf(mode, sizeof(mode), "--%s", preset);
-        run_mode(mode, NULL);
-    } else {
-        run_mode("--default", NULL);
+    char preset[64];
+    pp_get("preset", preset, sizeof preset);
+    str_lower(preset);
+    char *sp = strchr(preset, ' ');
+    if (sp) *sp = 0;
+    if (preset[0]) call_preset(preset);
+    else call_mode("--default", mode_default);
+
+    char v[8];
+    if (pp_get("nic", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--nic-offload", mode_nic_offload);
+        else call_mode("--nic-on", mode_nic_on);
+    }
+    if (pp_get("irq", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--irq-affinity", mode_irq_affinity);
+        else call_mode("--unirq-affinity", mode_unirq_affinity);
+    }
+    if (pp_get("ksoft", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--boost-ksoft", mode_boost_ksoft);
+        else call_mode("--unboost-ksoft", mode_unboost_ksoft);
+    }
+    char algo[64];
+    if (pp_get("tcp_algo", algo, sizeof algo) && algo[0])
+        write_sysfile("/proc/sys/net/ipv4/tcp_congestion_control", algo);
+    if (pp_get("wifips", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--wifi-ps-off", mode_wifi_ps_off);
+        else call_mode("--wifi-ps-on", mode_wifi_ps_on);
+    }
+    if (pp_get("conntrack", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--conntrack-on", mode_conntrack_on);
+        else call_mode("--conntrack-off", mode_conntrack_off);
     }
 
-    char v[128];
-    if (read_file_trim(MODDIR "/nic.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--nic-offload" : "--nic-on", NULL);
-    if (read_file_trim(MODDIR "/irq.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--irq-affinity" : "--unirq-affinity", NULL);
-    if (read_file_trim(MODDIR "/ksoft.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--boost-ksoft" : "--unboost-ksoft", NULL);
-    if (read_file_trim(MODDIR "/tcp.txt", v, sizeof(v)) == 0 && v[0]) {
-        if (write_sysctl("net.ipv4.tcp_congestion_control", v) != 0) {
-            char m[160];
-            snprintf(m, sizeof(m), "Set TCP Congestion Control to %s", v);
-            write_log(m, "FAILED");
-        }
-    }
-    if (read_file_trim(MODDIR "/wifips.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--wifi-ps-off" : "--wifi-ps-on", NULL);
-    if (read_file_trim(MODDIR "/conntrack.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--conntrack-on" : "--conntrack-off", NULL);
-
-    char dns[256], tmp[256];
-    snprintf(dns, sizeof(dns), "default");
-    if (read_file_trim(MODDIR "/dns_manual.txt", tmp, sizeof(tmp)) == 0 && tmp[0])
-        snprintf(dns, sizeof(dns), "%s", tmp);
-    if (!strcmp(dns, "default") || !dns[0]) {
-        run_cmd("settings delete global private_dns_mode");
-        run_cmd("settings delete global private_dns_specifier");
+    char mdns[256];
+    if (!pp_get("dns_manual", mdns, sizeof mdns) || !mdns[0])
+        snprintf(mdns, sizeof mdns, "default");
+    if (strcmp(mdns, "default") == 0 || !mdns[0]) {
+        sh("settings delete global private_dns_mode 2>/dev/null");
+        sh("settings delete global private_dns_specifier 2>/dev/null");
         write_log("Auto DNS: Restored to System Default", "SUCCESS");
     } else {
-        run_cmd("settings put global private_dns_mode hostname");
-        run_cmd("settings put global private_dns_specifier %s", dns);
-        char m[320];
-        snprintf(m, sizeof(m), "Auto DNS: Restored manual DNS -> %s", dns);
-        write_log(m, "SUCCESS");
+        sh("settings put global private_dns_mode hostname 2>/dev/null");
+        char q[600], cmd[900];
+        shq(q, sizeof q, mdns);
+        snprintf(cmd, sizeof cmd, "settings put global private_dns_specifier %s 2>/dev/null", q);
+        sh(cmd);
+        write_logf("Auto DNS: Restored manual DNS -> %s", "SUCCESS", mdns);
     }
+    return 0;
 }
 
-/* ===================== DAEMON ===================== */
+static volatile sig_atomic_t g_stop = 0;
 
-static void cmd_daemon(void) {
+static void on_stop(int sig) {
+    (void)sig;
+    g_stop = 1;
+}
+
+static void rm_pidfile(void) {
+    unlink(g_pidfile);
+}
+
+static int display_on(void) {
+    FILE *f = popen("dumpsys power 2>/dev/null", "r");
+    if (!f) return 0;
+    char line[4096];
+    int on = 0;
+    while (fgets(line, sizeof line, f)) {
+        if (strstr(line, "mHoldingDisplaySuspendBlocker=true")) {
+            on = 1;
+            break;
+        }
+    }
+    pclose(f);
+    return on;
+}
+
+static int mode_daemon(void) {
+    /* Single-instance via pidfile — pid mati dianggap crash, pidfile
+     * ditimpa; boot membersihkan pidfile lama sebelum meluncurkan. */
+    if (access(g_pidfile, F_OK) == 0) {
+        char oldpid[32] = "";
+        FILE *pf = fopen(g_pidfile, "r");
+        if (pf) {
+            if (fgets(oldpid, sizeof oldpid, pf)) trim_nl(oldpid);
+            else oldpid[0] = 0;
+            fclose(pf);
+        }
+        if (oldpid[0]) {
+            char proc[96];
+            snprintf(proc, sizeof proc, "/proc/%s", oldpid);
+            struct stat st;
+            if (stat(proc, &st) == 0) {
+                write_logf("Daemon: already running (pid %s) — exit", "SKIP", oldpid);
+                return 0;
+            }
+        }
+    }
+    FILE *pf = fopen(g_pidfile, "w");
+    if (pf) {
+        fprintf(pf, "%d\n", (int)getpid());
+        fclose(pf);
+    }
+    atexit(rm_pidfile);
+    signal(SIGINT, on_stop);
+    signal(SIGTERM, on_stop);
+    signal(SIGCHLD, SIG_IGN);
+
     write_log("Event Dispatcher Daemon Started", "SUCCESS");
 
-    /* Tick loop (background, setara "( ... ) &") */
-    if (fork() == 0) {
-        int tick = 0;
-        for (;;) {
-            if (run_cmd("dumpsys power 2>/dev/null | grep -q mHoldingDisplaySuspendBlocker=true") == 0) {
-                tick++;
-                if (tick % 3 == 1)
-                    run_mode("--engine", "PERIODIC_HEALTH_CHECK");
-                if (auto_mode_on()) {
-                    run_mode("--auto-detect", NULL);
-                    run_mode("--dns-flip", "PERIODIC");
-                }
-            }
-            sleep(10);
+    char last_if[1024] = "", last_route[512] = "", last_vpn[256] = "";
+    iface_snapshot(last_if, sizeof last_if);
+    route_snapshot(last_route, sizeof last_route);
+    vpn_snapshot(last_vpn, sizeof last_vpn);
+    long tick = 0;
+
+    /* Satu-satunya loop: event jaringan dihitung dari diff snapshot tiap
+     * 10 s. TERM/INT memutus sleep() langsung, jadi keluar seketika. */
+    while (!g_stop) {
+        sleep(10);
+        if (g_stop) break;
+
+        char cur_if[1024];
+        iface_snapshot(cur_if, sizeof cur_if);
+        if (strcmp(cur_if, last_if) != 0) {
+            fire_iface_events(last_if, cur_if);
+            snprintf(last_if, sizeof last_if, "%s", cur_if);
         }
-    }
 
-    /* ip monitor loop (foreground daemon) */
-    FILE *p = popen("ip monitor link route address 2>/dev/null", "r");
-    if (!p) return;
-    char last_if_state[128] = "";
-    char last_route[256] = "";
-    char line[1024];
-    while (fgets(line, sizeof(line), p)) {
-        char *nl = strpbrk(line, "\r\n"); if (nl) *nl = 0;
+        char cur_route[512];
+        route_snapshot(cur_route, sizeof cur_route);
+        if (strcmp(cur_route, last_route) != 0 && (cur_route[0] || last_route[0])) {
+            if (debounce_ok("route", 4)) {
+                spawn_bg("--engine", "ROUTE_CHANGED");
+                spawn_bg("--dns-flip", "ROUTE_CHANGED");
+            }
+        }
+        snprintf(last_route, sizeof last_route, "%s", cur_route);
 
-        if (strstr(line, ": wlan") || strstr(line, ": rmnet") || strstr(line, ": ccmni")) {
-            char ifname[64] = "";
-            char *c1 = strchr(line, ':');
-            if (c1) {
-                char *start = c1 + 1;
-                while (*start == ' ') start++;
-                char *c2 = strchr(start, ':');
-                if (c2) {
-                    size_t n = c2 - start;
-                    if (n > 0 && n < sizeof(ifname)) { memcpy(ifname, start, n); ifname[n] = 0; }
-                }
+        char cur_vpn[256];
+        vpn_snapshot(cur_vpn, sizeof cur_vpn);
+        if (strcmp(cur_vpn, last_vpn) != 0 && cur_vpn[0]) {
+            if (debounce_ok("vpn", 3)) {
+                spawn_bg("--engine", "VPN_CONNECTED");
+                spawn_bg("--dns-flip", "VPN_CONNECTED");
             }
-            if (!ifname[0]) continue;
+        }
+        snprintf(last_vpn, sizeof last_vpn, "%s", cur_vpn);
 
-            char new_state[128] = "";
-            if (strstr(line, "state UP")) snprintf(new_state, sizeof(new_state), "%s:UP", ifname);
-            else if (strstr(line, "state DOWN")) snprintf(new_state, sizeof(new_state), "%s:DOWN", ifname);
-
-            if (new_state[0] && strcmp(new_state, last_if_state)) {
-                snprintf(last_if_state, sizeof(last_if_state), "%s", new_state);
-                if (strstr(new_state, ":UP")) {
-                    if (debounce_ok("iface_up", 3)) {
-                        spawn("--engine", "INTERFACE_UP");
-                        spawn("--dns-flip", "INTERFACE_UP");
-                    }
-                } else {
-                    if (debounce_ok("iface_down", 3)) {
-                        spawn("--engine", "INTERFACE_DOWN");
-                        spawn("--dns-flip", "INTERFACE_DOWN");
-                    }
-                }
-            }
-        } else if (strstr(line, "tun0") || strstr(line, "wg0") || strstr(line, "tailscale")) {
-            if (strstr(line, "inet ")) {
-                if (debounce_ok("vpn", 3)) {
-                    spawn("--engine", "VPN_CONNECTED");
-                    spawn("--dns-flip", "VPN_CONNECTED");
-                }
-            }
-        } else if (!strncmp(line, "default via", 11) || !strncmp(line, "Deleted default via", 19)) {
-            char key[256] = "";
-            char *save = NULL;
-            char *tok = strtok_r(line, " ", &save);
-            for (int i = 0; tok && i < 5; i++) {
-                if (i) strncat(key, " ", sizeof(key) - strlen(key) - 1);
-                strncat(key, tok, sizeof(key) - strlen(key) - 1);
-                tok = strtok_r(NULL, " ", &save);
-            }
-            if (key[0] && strcmp(key, last_route)) {
-                snprintf(last_route, sizeof(last_route), "%s", key);
-                if (debounce_ok("route", 4)) {
-                    spawn("--engine", "ROUTE_CHANGED");
-                    spawn("--dns-flip", "ROUTE_CHANGED");
-                }
+        if (display_on()) {
+            tick++;
+            if (tick % 3 == 1)
+                spawn_bg("--engine", "PERIODIC_HEALTH_CHECK");
+            char am[8];
+            if (pp_get("auto_mode", am, sizeof am) && strcmp(am, "1") == 0) {
+                spawn_bg("--auto-detect", NULL);
+                spawn_bg("--dns-flip", "PERIODIC");
             }
         }
     }
-    pclose(p);
+    return 0; /* exit → atexit rm pidfile */
 }
 
-/* ===================== BOOT ===================== */
-
-static void detect_games(void) {
-    write_log("Game Scanner: Detecting installed games...", "STARTED");
-    FILE *lf = fopen(GAME_LIST, "w");
+static int mode_boot(void) {
+    FILE *lf = fopen(g_logfile, "w");
     if (lf) fclose(lf);
-    run_cmd("cmd package query-activities -a android.intent.action.MAIN -c android.intent.category.LAUNCHER | "
-            "awk -F= '/geNa/{p=$2} /ry=0/{if(p!=\"\") print p}' | sort -u >> %s", GAME_LIST);
-
-    int count = 0;
-    char list[4096] = "";
-    FILE *f = fopen(GAME_LIST, "r");
-    if (f) {
-        char line[512];
-        while (fgets(line, sizeof(line), f)) {
-            char *nl = strpbrk(line, "\r\n"); if (nl) *nl = 0;
-            if (!line[0]) continue;
-            count++;
-            if (list[0]) strncat(list, ",", sizeof(list) - strlen(list) - 1);
-            strncat(list, line, sizeof(list) - strlen(list) - 1);
-        }
-        fclose(f);
-    }
-    char msg[4200];
-    snprintf(msg, sizeof(msg), "Game Scanner: Found %d games [%s]", count, list);
-    write_log(msg, "SUCCESS");
-}
-
-static void module_description(void) {
-    if (run_cmd("pgrep -f PingPimp") == 0)
-        run_cmd("sed -Ei 's/^description=(\\[.*][[:space:]]*)?/description=[ \xF0\x9F\x98\x8B WORKING ] /g' %s", MODULE_PROP);
-    else
-        run_cmd("sed -Ei 's/^description=(\\[.*][[:space:]]*)?/description=[  \xE2\x9A\xA0\xEF\xB8\x8F NOT WORKING ] /g' %s", MODULE_PROP);
-}
-
-static void patch_wpa(void) {
-    const char *paths[] = {
-        "/data/misc/wifi/wpa_supplicant.conf",
-        "/data/misc/wifi/wpa_supplicant/wpa_supplicant.conf",
-        NULL
-    };
-    for (int i = 0; paths[i]; i++) {
-        if (access(paths[i], F_OK) == 0) {
-            run_cmd("grep -q p2p_disabled=1 %s || echo p2p_disabled=1 >> %s", paths[i], paths[i]);
-            run_cmd("grep -q ap_scan=1 %s || echo ap_scan=1 >> %s", paths[i], paths[i]);
-            write_log("Patched wpa_supplicant.conf", "SUCCESS");
-            return;
-        }
-    }
-    write_log("wpa_supplicant.conf not present on this Android version (10+), skipping", "SKIP");
-}
-
-static void restore_isolated(void) {
-    char buf[8192];
-    if (read_list(MODDIR "/isolate_apps.txt", buf, sizeof(buf)) != 0) return;
-    char uid[64];
-    char *save = NULL;
-    for (char *pkg = strtok_r(buf, ",", &save); pkg; pkg = strtok_r(NULL, ",", &save)) {
-        if (!pkg[0]) continue;
-        if (lookup_uid(pkg, uid, sizeof(uid)) != 0) continue;
-        run_cmd("iptables  -I OUTPUT -m owner --uid-owner %s -j REJECT", uid);
-        run_cmd("ip6tables -I OUTPUT -m owner --uid-owner %s -j REJECT", uid);
-        char m[160];
-        snprintf(m, sizeof(m), "Isolated app UID: %s", uid);
-        write_log(m, "SUCCESS");
-    }
-}
-
-static void cmd_boot(void) {
-    FILE *f = fopen(LOG_FILE, "w");
-    if (f) fclose(f);
     write_log("PingPimp Boot Initialization Started", "SUCCESS");
+    rmdir(g_lockdir);
+    unlink(g_pidfile);
+    /* Reset state runtime */
+    pp_del("tcp_prev");
+    pp_del("pending_profile");
+    pp_del("debounce");
+    pp_del("mtu_last");
+    pp_del("auto_act");
+    pp_del("auto_pkg");
+    pp_del("auto_act_pending");
 
-    rmdir(LOCKDIR);
-    unlink(TCP_CACHE);
-    unlink(PENDING_FILE);
-    unlink(MODDIR "/.current_auto_act");
-    run_cmd("rm -f %s/.debounce_* %s/.last_mtu_*", MODDIR, MODDIR);
-    mkdir(MTU_CACHE_DIR, 0755);
-
-    if (fork() == 0) { detect_games(); _exit(0); }
+    pid_t pid = fork();
+    if (pid == 0) {
+        detect_games();
+        _exit(0);
+    }
     module_description();
+    clear_wlan_promisc_allmulti("wlan0");
+    write_sysfile("/proc/sys/net/ipv6/conf/wlan0/accept_ra", "0");
 
-    run_cmd("ifconfig wlan0 -allmulti");
-    run_cmd("ifconfig wlan0 -promisc");
-    write_proc("/proc/sys/net/ipv6/conf/wlan0/accept_ra", "0");
-
-    char preset[64] = "";
-    read_file_trim(MODDIR "/preset.txt", preset, sizeof(preset));
+    char preset[64];
+    pp_get("preset", preset, sizeof preset);
+    str_lower(preset);
     if (preset[0]) {
-        for (char *p = preset; *p; p++) *p = tolower((unsigned char)*p);
-        char *sp = strchr(preset, ' '); if (sp) *sp = 0;
-        char m[96];
-        snprintf(m, sizeof(m), "Applying Preset: %s", preset);
-        write_log(m, "SUCCESS");
-        char mode[80];
-        snprintf(mode, sizeof(mode), "--%s", preset);
-        run_mode(mode, NULL);
+        write_logf("Applying Preset: %s", "SUCCESS", preset);
+        if (strcmp(preset, "game") == 0) call_mode("--game", mode_game);
+        else if (strcmp(preset, "download") == 0) call_mode("--download", mode_download);
+        else if (strcmp(preset, "streaming") == 0) call_mode("--streaming", mode_streaming);
+        else if (strcmp(preset, "social media") == 0 || strcmp(preset, "social") == 0)
+            call_mode("--social", mode_social);
+        else if (strcmp(preset, "browsing") == 0) call_mode("--browsing", mode_browsing);
+        else if (strcmp(preset, "outdoor") == 0) call_mode("--outdoor", mode_outdoor);
+        else call_mode("--default", mode_default);
     } else {
         write_log("Applying Default Preset", "SUCCESS");
-        run_mode("--default", NULL);
+        call_mode("--default", mode_default);
     }
 
-    char v[128];
-    if (read_file_trim(MODDIR "/ipv6_state.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--disable" : "--enable", NULL);
-    if (read_file_trim(MODDIR "/state.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--state" : "--unstate", NULL);
-    if (read_file_trim(MODDIR "/saver.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--saver" : "--unsaver", NULL);
-    if (read_file_trim(MODDIR "/nic.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--nic-offload" : "--nic-on", NULL);
-    if (read_file_trim(MODDIR "/irq.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--irq-affinity" : "--unirq-affinity", NULL);
-    if (read_file_trim(MODDIR "/ksoft.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--boost-ksoft" : "--unboost-ksoft", NULL);
-    if (read_file_trim(MODDIR "/wifips.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--wifi-ps-off" : "--wifi-ps-on", NULL);
-    if (read_file_trim(MODDIR "/conntrack.txt", v, sizeof(v)) == 0 && v[0])
-        run_mode(!strcmp(v, "1") ? "--conntrack-on" : "--conntrack-off", NULL);
-
-    if (read_file_trim(MODDIR "/tcp.txt", v, sizeof(v)) == 0 && v[0]) {
-        char m[160];
-        snprintf(m, sizeof(m), "Set TCP Congestion Control to %s", v);
-        write_log(m, write_sysctl("net.ipv4.tcp_congestion_control", v) == 0 ? "SUCCESS" : "FAILED");
+    char v[8];
+    if (pp_get("ipv6_state", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--disable", mode_disable);
+        else call_mode("--enable", mode_enable);
+    }
+    if (pp_get("net_state", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--state", mode_state);
+        else call_mode("--unstate", mode_unstate);
+    }
+    if (pp_get("saver", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--saver", mode_saver);
+        else call_mode("--unsaver", mode_unsaver);
+    }
+    if (pp_get("nic", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--nic-offload", mode_nic_offload);
+        else call_mode("--nic-on", mode_nic_on);
+    }
+    if (pp_get("irq", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--irq-affinity", mode_irq_affinity);
+        else call_mode("--unirq-affinity", mode_unirq_affinity);
+    }
+    if (pp_get("ksoft", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--boost-ksoft", mode_boost_ksoft);
+        else call_mode("--unboost-ksoft", mode_unboost_ksoft);
+    }
+    if (pp_get("wifips", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--wifi-ps-off", mode_wifi_ps_off);
+        else call_mode("--wifi-ps-on", mode_wifi_ps_on);
+    }
+    if (pp_get("conntrack", v, sizeof v) && v[0]) {
+        if (strcmp(v, "1") == 0) call_mode("--conntrack-on", mode_conntrack_on);
+        else call_mode("--conntrack-off", mode_conntrack_off);
+    }
+    char algo[64];
+    if (pp_get("tcp_algo", algo, sizeof algo) && algo[0]) {
+        if (write_sysfile("/proc/sys/net/ipv4/tcp_congestion_control", algo) == 0)
+            write_logf("Set TCP Congestion Control to %s", "SUCCESS", algo);
+        else
+            write_logf("Set TCP Congestion Control to %s", "FAILED", algo);
     }
 
-    restore_isolated();
-    patch_wpa();
+    char ipath[PATH_MAX + 64];
+    snprintf(ipath, sizeof ipath, "%s/isolate_apps.txt", g_moddir);
+    if (access(ipath, F_OK) == 0) {
+        FILE *fp = fopen(ipath, "r");
+        if (fp) {
+            char buf[8192];
+            size_t r = fread(buf, 1, sizeof buf - 1, fp);
+            buf[r] = 0;
+            fclose(fp);
+            char *save = NULL;
+            for (char *tok = strtok_r(buf, ", \t\r\n", &save); tok;
+                 tok = strtok_r(NULL, ", \t\r\n", &save)) {
+                long uid = pm_uid(tok);
+                if (uid < 0) continue;
+                shf("iptables -I OUTPUT -m owner --uid-owner %ld -j REJECT 2>/dev/null", uid);
+                shf("ip6tables -I OUTPUT -m owner --uid-owner %ld -j REJECT 2>/dev/null", uid);
+                write_logf("Isolated app UID: %ld", "SUCCESS", uid);
+            }
+        }
+    }
 
-    run_cmd("stop tcpdump");
-    run_cmd("stop vendor.tcpdump");
-    run_cmd("stop cnss_diag");
-    run_cmd("stop vendor.cnss_diag");
-    if (access("/data/vendor/wlan_logs", F_OK) == 0) {
-        run_cmd("rm -rf /data/vendor/wlan_logs/*");
-        run_cmd("chmod 000 /data/vendor/wlan_logs");
+    char conf[PATH_MAX] = "";
+    if (access("/data/misc/wifi/wpa_supplicant.conf", F_OK) == 0) {
+        snprintf(conf, sizeof conf, "%s", "/data/misc/wifi/wpa_supplicant.conf");
+    } else {
+        glob_t g;
+        if (glob("/data/misc/wifi/*/wpa_supplicant.conf", 0, NULL, &g) == 0) {
+            if (g.gl_pathc > 0)
+                snprintf(conf, sizeof conf, "%s", g.gl_pathv[0]);
+            globfree(&g);
+        }
+    }
+    if (conf[0]) {
+        int has_p2p = 0, has_scan = 0;
+        FILE *wf = fopen(conf, "r");
+        if (wf) {
+            char wline[1024];
+            while (fgets(wline, sizeof wline, wf)) {
+                if (strstr(wline, "p2p_disabled=1")) has_p2p = 1;
+                if (strstr(wline, "ap_scan=1")) has_scan = 1;
+            }
+            fclose(wf);
+        }
+        FILE *wa = fopen(conf, "a");
+        if (wa) {
+            if (!has_p2p) fprintf(wa, "p2p_disabled=1\n");
+            if (!has_scan) fprintf(wa, "ap_scan=1\n");
+            fclose(wa);
+        }
+        write_logf("Patched wpa_supplicant.conf (%s)", "SUCCESS", conf);
+    } else {
+        write_log("wpa_supplicant.conf not present on this Android version (10+), skipping", "SKIP");
+    }
+
+    sh("stop tcpdump 2>/dev/null");
+    sh("stop vendor.tcpdump 2>/dev/null");
+    sh("stop cnss_diag 2>/dev/null");
+    sh("stop vendor.cnss_diag 2>/dev/null");
+
+    struct stat wst;
+    if (stat("/data/vendor/wlan_logs", &wst) == 0 && S_ISDIR(wst.st_mode)) {
+        DIR *wd = opendir("/data/vendor/wlan_logs");
+        if (wd) {
+            struct dirent *we;
+            char wpath[PATH_MAX];
+            while ((we = readdir(wd))) {
+                if (!strcmp(we->d_name, ".") || !strcmp(we->d_name, "..")) continue;
+                snprintf(wpath, sizeof wpath, "/data/vendor/wlan_logs/%s", we->d_name);
+                if (unlink(wpath) != 0) rmdir(wpath);
+            }
+            closedir(wd);
+        }
+        chmod("/data/vendor/wlan_logs", 0);
         write_log("Stopped WLAN diag services & cleared logs", "SUCCESS");
     }
 
-    write_file(STATE_FILE, "NONE");
+    pp_set("engine_state", "NONE");
 
-    if (auto_mode_on())
-        spawn("--dns-flip", "BOOT");
+    {
+        char am[8];
+        if (pp_get("auto_mode", am, sizeof am) && strcmp(am, "1") == 0)
+            spawn_bg("--dns-flip", "BOOT");
+    }
 
     write_log("PingPimp Boot Initialization Completed. Launching Daemon...", "SUCCESS");
-    spawn("--daemon", NULL);
-}
-
-/* ===================== DISPATCH ===================== */
-
-static int run_mode(const char *mode, const char *arg) {
-    snprintf(g_label, sizeof(g_label), "%s", mode);
-
-    if      (!strcmp(mode, "--default"))  apply_preset("Network Preset: Default (Balanced)", PRESET_DEFAULT, 0);
-    else if (!strcmp(mode, "--game"))     apply_preset("Network Preset: Game (Ultra Low Latency)", PRESET_GAME, 1);
-    else if (!strcmp(mode, "--download")) apply_preset("Network Preset: Download (Maximum Throughput)", PRESET_DOWNLOAD, 0);
-    else if (!strcmp(mode, "--streaming"))apply_preset("Network Preset: Streaming (Smooth Buffer)", PRESET_STREAMING, 0);
-    else if (!strcmp(mode, "--social") || !strcmp(mode, "--browsing"))
-                                         apply_preset("Network Preset: Social / Browsing (Snappy)", PRESET_SOCIAL, 1);
-    else if (!strcmp(mode, "--outdoor"))  apply_preset("Network Preset: Outdoor (Weak Signal Resilient)", PRESET_OUTDOOR, 0);
-    else if (!strcmp(mode, "--state")) {
-        static const char *const C[] = {
-            "cmd settings put global netstats_enabled 0",
-            "cmd wifi set-scan-always-available disabled",
-            "cmd wifi set-verbose-logging disabled -l 0" };
-        apply_cmds("Disable Network State", C, 3);
-    }
-    else if (!strcmp(mode, "--unstate")) {
-        static const char *const C[] = {
-            "cmd settings delete global netstats_enabled",
-            "cmd wifi set-scan-always-available enabled",
-            "cmd wifi set-verbose-logging enabled -l 1" };
-        apply_cmds("Enable Network State", C, 3);
-    }
-    else if (!strcmp(mode, "--saver")) {
-        static const char *const C[] = {
-            "cmd netpolicy set restrict-background true",
-            "cmd settings put global ingress_rate_limit_bytes_per_second 1048576" };
-        apply_cmds("Enable Data Saver", C, 2);
-    }
-    else if (!strcmp(mode, "--unsaver")) {
-        static const char *const C[] = {
-            "cmd netpolicy set restrict-background false",
-            "cmd settings delete global ingress_rate_limit_bytes_per_second" };
-        apply_cmds("Disable Data Saver", C, 2);
-    }
-    else if (!strcmp(mode, "--disable") || !strcmp(mode, "--enable")) {
-        int dis = !strcmp(mode, "--disable");
-        const char *val = dis ? "1" : "0";
-        int ok = 0;
-        ok += write_sysctl("net.ipv6.conf.all.disable_ipv6", val) == 0;
-        ok += write_sysctl("net.ipv6.conf.default.disable_ipv6", val) == 0;
-        ok += write_sysctl("net.ipv6.conf.lo.disable_ipv6", val) == 0;
-        run_cmd("content update --uri content://telephony/carriers --bind protocol:s:%s --bind roaming_protocol:s:%s",
-                dis ? "IP" : "IPV4V6", dis ? "IP" : "IPV4V6");
-        run_cmd("cmd connectivity airplane-mode enable");
-        sleep(1);
-        run_cmd("cmd connectivity airplane-mode disable");
-        log_summary(dis ? "Disable IPv6 Connection" : "Enable IPv6 Connection", ok, 3);
-    }
-    else if (!strcmp(mode, "--nic-offload"))  cmd_nic(1);
-    else if (!strcmp(mode, "--nic-on"))       cmd_nic(0);
-    else if (!strcmp(mode, "--wifi-ps-off"))  cmd_wifi_ps(1);
-    else if (!strcmp(mode, "--wifi-ps-on"))   cmd_wifi_ps(0);
-    else if (!strcmp(mode, "--conntrack-on")) cmd_conntrack_on();
-    else if (!strcmp(mode, "--conntrack-off"))cmd_conntrack_off();
-    else if (!strcmp(mode, "--irq-affinity")) {
-        int cpus = cpu_last();
-        const char *mask = cpus >= 7 ? "c0" : (cpus >= 3 ? "c" : "3");
-        char logname[96];
-        snprintf(logname, sizeof(logname), "Set IRQ affinity to mask %s", mask);
-        set_irq_affinity(mask, logname);
-    }
-    else if (!strcmp(mode, "--unirq-affinity"))
-        set_irq_affinity("ff", "Restored IRQ affinity to all cores");
-    else if (!strcmp(mode, "--boost-ksoft"))   cmd_ksoft(1);
-    else if (!strcmp(mode, "--unboost-ksoft")) cmd_ksoft(0);
-    else if (!strcmp(mode, "--hw-tweak"))      cmd_hw_tweak();
-    else if (!strcmp(mode, "--init-tc"))       cmd_init_tc();
-    else if (!strcmp(mode, "--engine"))        cmd_engine(arg ? arg : "");
-    else if (!strcmp(mode, "--dns-flip"))      run_dns_flip(arg ? arg : "MANUAL");
-    else if (!strcmp(mode, "--auto-detect"))   cmd_auto_detect();
-    else if (!strcmp(mode, "--auto-on")) {
-        write_log("Smart Auto Mode Enabled", "SUCCESS");
-        spawn("--dns-flip", "AUTO_ON");
-    }
-    else if (!strcmp(mode, "--auto-off"))      cmd_auto_off();
-    else if (!strcmp(mode, "--daemon"))        cmd_daemon();
-    else if (!strcmp(mode, "--boot"))          cmd_boot();
-
-    return 0;
+    /* exec: boot berubah menjadi daemon itu sendiri — tidak ada proses
+     * launcher yang bertahan di ps. */
+    return mode_daemon();
 }
 
 int main(int argc, char **argv) {
-    if (argc < 2) return 0;
-    return run_mode(argv[1], argc > 2 ? argv[2] : NULL);
+    init_paths();
+    const char *m = (argc > 1) ? argv[1] : NULL;
+    const char *ev = (argc > 2) ? argv[2] : NULL;
+    g_mode = (m && m[0]) ? m : "system";
+
+    if (!m || !m[0]) return 0;
+    if (strcmp(m, "--default") == 0) return mode_default();
+    if (strcmp(m, "--game") == 0) return mode_game();
+    if (strcmp(m, "--download") == 0) return mode_download();
+    if (strcmp(m, "--streaming") == 0) return mode_streaming();
+    if (strcmp(m, "--social") == 0) return mode_social();
+    if (strcmp(m, "--browsing") == 0) return mode_browsing();
+    if (strcmp(m, "--outdoor") == 0) return mode_outdoor();
+    if (strcmp(m, "--state") == 0) return mode_state();
+    if (strcmp(m, "--unstate") == 0) return mode_unstate();
+    if (strcmp(m, "--saver") == 0) return mode_saver();
+    if (strcmp(m, "--unsaver") == 0) return mode_unsaver();
+    if (strcmp(m, "--disable") == 0) return mode_disable();
+    if (strcmp(m, "--enable") == 0) return mode_enable();
+    if (strcmp(m, "--nic-offload") == 0) return mode_nic_offload();
+    if (strcmp(m, "--nic-on") == 0) return mode_nic_on();
+    if (strcmp(m, "--wifi-ps-off") == 0) return mode_wifi_ps_off();
+    if (strcmp(m, "--wifi-ps-on") == 0) return mode_wifi_ps_on();
+    if (strcmp(m, "--conntrack-on") == 0) return mode_conntrack_on();
+    if (strcmp(m, "--conntrack-off") == 0) return mode_conntrack_off();
+    if (strcmp(m, "--irq-affinity") == 0) return mode_irq_affinity();
+    if (strcmp(m, "--unirq-affinity") == 0) return mode_unirq_affinity();
+    if (strcmp(m, "--boost-ksoft") == 0) return mode_boost_ksoft();
+    if (strcmp(m, "--unboost-ksoft") == 0) return mode_unboost_ksoft();
+    if (strcmp(m, "--hw-tweak") == 0) return mode_hw_tweak();
+    if (strcmp(m, "--init-tc") == 0) return mode_init_tc();
+    if (strcmp(m, "--engine") == 0) return mode_engine(ev ? ev : "");
+    if (strcmp(m, "--dns-flip") == 0) {
+        run_dns_flip(ev ? ev : "MANUAL");
+        return 0;
+    }
+    if (strcmp(m, "--auto-detect") == 0) return mode_auto_detect();
+    if (strcmp(m, "--auto-on") == 0) return mode_auto_on();
+    if (strcmp(m, "--auto-off") == 0) return mode_auto_off();
+    if (strcmp(m, "--daemon") == 0) return mode_daemon();
+    if (strcmp(m, "--boot") == 0) return mode_boot();
+    return 0;
 }
