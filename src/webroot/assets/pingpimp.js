@@ -519,14 +519,11 @@ function getDnsOptionsList() {
 }
 
 function getAutoDnsOptionsList() {
-  const providers = getDnsOptionsList().filter(o =>
-    !['default', 'custom', 'google'].includes(o.value)
-  );
-  return [
-    { value: 'default', text: t('dnsDefault', 'Default') },
-    { value: 'custom', text: t('dnsCustom', 'Custom DNS') },
-    ...providers
-  ];
+  // v17: opsi DNS mode auto = daftar lengkap yang sama dengan Network Tweak
+  // (termasuk Google — sebagai PILIHAN eksplisit, bukan fallback otomatis).
+  // Rantai saat auto aktif: SSID override -> DNS WiFi/Data -> opsi DNS
+  // Network Tweak (dns_manual) -> DNS sistem. Tanpa fallback Google.
+  return getDnsOptionsList();
 }
 
 /* ============================================================
@@ -548,15 +545,15 @@ function getPresetOptions() {
    DEFINISI SWITCH — file konfigurasi + flag CLI PingPimp
    ============================================================ */
 const SWITCH_DEFS = {
-  auto:      { file: 'auto_mode.txt', on: 'auto-on',      off: 'auto-off',      name: 'Smart Auto Mode' },
-  netstate:  { file: 'state.txt',     on: 'state',        off: 'unstate',       name: 'Network State' },
-  saver:     { file: 'saver.txt',     on: 'saver',        off: 'unsaver',       name: 'Data Saver' },
-  ipv6:      { file: 'ipv6_state.txt', on: 'disable',     off: 'enable',        name: 'Disable IPv6' },
-  nic:       { file: 'nic.txt',       on: 'nic-offload',  off: 'nic-on',        name: 'NIC Offloading' },
-  irq:       { file: 'irq.txt',       on: 'irq-affinity', off: 'unirq-affinity', name: 'IRQ Affinity' },
-  conntrack: { file: 'conntrack.txt', on: 'conntrack-on', off: 'conntrack-off', name: 'ConnTrack Optimization' },
-  wifips:    { file: 'wifips.txt',    on: 'wifi-ps-off',  off: 'wifi-ps-on',    name: 'Wi-Fi Low-Jitter' },
-  ksoft:     { file: 'ksoft.txt',     on: 'boost-ksoft',  off: 'unboost-ksoft', name: 'Ksoftirqd Boost' }
+  auto:      { key: 'auto_mode',  on: 'auto-on',      off: 'auto-off',      name: 'Smart Auto Mode' },
+  netstate:  { key: 'net_state',  on: 'state',        off: 'unstate',       name: 'Network State' },
+  saver:     { key: 'saver',      on: 'saver',        off: 'unsaver',       name: 'Data Saver' },
+  ipv6:      { key: 'ipv6_state', on: 'disable',      off: 'enable',        name: 'Disable IPv6' },
+  nic:       { key: 'nic',        on: 'nic-offload',  off: 'nic-on',        name: 'NIC Offloading' },
+  irq:       { key: 'irq',        on: 'irq-affinity', off: 'unirq-affinity', name: 'IRQ Affinity' },
+  conntrack: { key: 'conntrack',  on: 'conntrack-on', off: 'conntrack-off', name: 'ConnTrack Optimization' },
+  wifips:    { key: 'wifips',     on: 'wifi-ps-off',  off: 'wifi-ps-on',    name: 'Wi-Fi Low-Jitter' },
+  ksoft:     { key: 'ksoft',      on: 'boost-ksoft',  off: 'unboost-ksoft', name: 'Ksoftirqd Boost' }
 };
 
 /* ============================================================
@@ -646,15 +643,40 @@ function applyMonet(on, notify) {
 }
 
 function applyNav(floating, notify) {
-  S.floatingNav = !!floating;
-  S.navHidden = false;
-  document.documentElement.setAttribute('data-nav', S.floatingNav ? 'floating' : 'bar');
-  lsSet('pingpimp_nav', S.floatingNav ? 'floating' : 'bar');
-  persistUiSettings();
-  if (notify) {
-    toast(S.floatingNav ? t('toastNavFloating', 'Floating navigation bar enabled')
-                        : t('toastNavFixed', 'Fixed bottom bar enabled'));
-  }
+  const root = document.documentElement;
+  const nextMode = floating ? 'floating' : 'bar';
+  const prevMode = root.getAttribute('data-nav');
+  const commitNav = () => {
+    S.floatingNav = !!floating;
+    S.navHidden = false;
+    root.setAttribute('data-nav', nextMode);
+    lsSet('pingpimp_nav', nextMode);
+    persistUiSettings();
+    if (notify) {
+      toast(S.floatingNav ? t('toastNavFloating', 'Floating navigation bar enabled')
+                          : t('toastNavFixed', 'Fixed bottom bar enabled'));
+    }
+  };
+  /* Task 29: ganti mode navigasi = fade-through M3. Geometri bar vs
+     floating (left/right/width/transform) tidak saling interpolabel,
+     maka pil memudar singkat (120ms accel) -> atribut ditukar -> masuk
+     kembali (250ms decel). Hanya untuk aksi user (notify=true), bukan
+     boot awal; reduced-motion = tukar instan tanpa koreografi. */
+  const reduced = typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const nav = document.querySelector('.bottom-navigation');
+  if (!notify || reduced || !nav || prevMode === nextMode) { commitNav(); return; }
+  nav.classList.add('nav-mode-out');
+  setTimeout(() => {
+    commitNav();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        nav.classList.remove('nav-mode-out');
+        nav.classList.add('nav-mode-in');
+        setTimeout(() => nav.classList.remove('nav-mode-in'), 320);
+      });
+    });
+  }, 130);
 }
 
 /* ============================================================
@@ -783,14 +805,14 @@ function rotateBannerMessage() {
    ============================================================ */
 async function loadPresetOptions() {
   try {
-    const content = await exec('cat /data/adb/modules/PingPimp/preset.txt 2>/dev/null');
+    const content = await ppGet('preset');
     if (content && content.trim() !== '') S.presetValue = content.trim().toLowerCase();
   } catch (e) { /* biarkan default */ }
 }
 
 async function onPresetChange(value, text) {
   try {
-    await exec('echo "' + value + '" > /data/adb/modules/PingPimp/preset.txt');
+    await ppSet('preset', value);
     let cmdFlag = value.toLowerCase().replace(/[^a-z0-9]/g, '');
     if (value === 'social media') cmdFlag = 'social';
     await exec('PingPimp --' + cmdFlag);
@@ -819,7 +841,7 @@ async function loadTcpAlgorithms() {
 async function onTcpChange(value, text) {
   if (!value) return;
   try {
-    await exec('echo "' + value + '" > /data/adb/modules/PingPimp/tcp.txt');
+    await ppSet('tcp_algo', value);
     await exec('echo "' + value + '" > /proc/sys/net/ipv4/tcp_congestion_control');
     toast('TCP Algorithm set to ' + text);
   } catch (err) { toast('Failed to set TCP algorithm'); }
@@ -836,7 +858,7 @@ async function onDnsChange(value, text) {
       try {
         await exec('settings put global private_dns_mode hostname');
         await exec('settings put global private_dns_specifier ' + savedCustom);
-        await exec('echo "' + savedCustom + '" > /data/adb/modules/PingPimp/dns_manual.txt');
+        await ppSet('dns_manual', savedCustom);
         toast('DNS set to Custom: ' + savedCustom);
       } catch (e) { toast('Failed to set DNS'); }
     } else {
@@ -850,11 +872,11 @@ async function onDnsChange(value, text) {
     if (value === 'default') {
       await exec('settings delete global private_dns_mode');
       await exec('settings delete global private_dns_specifier');
-      await exec('echo "default" > /data/adb/modules/PingPimp/dns_manual.txt');
+      await ppSet('dns_manual', 'default');
     } else {
       await exec('settings put global private_dns_mode hostname');
       await exec('settings put global private_dns_specifier ' + dotName);
-      await exec('echo "' + dotName + '" > /data/adb/modules/PingPimp/dns_manual.txt');
+      await ppSet('dns_manual', dotName);
     }
     toast('Private DNS set to ' + text);
   } catch (e) {
@@ -869,7 +891,7 @@ async function applyCustomDns() {
   try {
     await exec('settings put global private_dns_mode hostname');
     await exec('settings put global private_dns_specifier ' + customDot);
-    await exec('echo "' + customDot + '" > /data/adb/modules/PingPimp/dns_manual.txt');
+    await ppSet('dns_manual', customDot);
     toast('Custom DNS Applied!');
   } catch (e) { toast('Failed to apply custom DNS'); }
 }
@@ -880,7 +902,7 @@ async function syncManualDnsToModule() {
     let host = 'default';
     if (val === 'custom') host = lsGet('pingpimp_custom_dns') || 'default';
     else if (val !== 'default') host = dnsMap[val] || 'default';
-    await exec('echo "' + host + '" > /data/adb/modules/PingPimp/dns_manual.txt');
+    await ppSet('dns_manual', host);
   } catch (e) { /* abaikan */ }
 }
 
@@ -888,25 +910,47 @@ async function triggerAutoDnsFlip() {
   try { await exec('PingPimp --dns-flip'); } catch (e) { /* abaikan */ }
 }
 
-async function readModuleFile(file) {
+/* ============================================================
+   STATE.JSON — akses terpusat (semua state/backup/modul PingPimp
+   dalam satu file; paritas dengan helper pp_get/pp_set di binary)
+   ============================================================ */
+const STATE_FILE = '/data/adb/modules/PingPimp/state.json';
+
+async function readStateObj() {
   try {
-    return (await exec('cat /data/adb/modules/PingPimp/' + file + ' 2>/dev/null')).trim();
-  } catch (e) { return ''; }
+    const raw = await exec('cat ' + STATE_FILE + ' 2>/dev/null');
+    const s = (raw || '').trim();
+    if (!s) return {};
+    return JSON.parse(s);
+  } catch (e) { return {}; }
+}
+
+async function ppGet(key) {
+  const obj = await readStateObj();
+  const v = obj[key];
+  return (v === undefined || v === null) ? '' : String(v);
+}
+
+async function ppSet(key, value) {
+  const obj = await readStateObj();
+  obj[key] = String(value);
+  const json = JSON.stringify(obj, null, 2);
+  // Tulis via base64 agar JSON multi-baris aman menembus bridge shell.
+  const b64 = btoa(unescape(encodeURIComponent(json)));
+  await exec("echo '" + b64 + "' | base64 -d > " + STATE_FILE);
 }
 
 const AUTO_DNS_CFG = {
-  mobile: { file: 'dns_mobile.txt', storeKey: 'pingpimp_auto_dns_custom_mobile', netLabel: 'Mobile Data' },
-  wifi:   { file: 'dns_wifi.txt',   storeKey: 'pingpimp_auto_dns_custom_wifi',   netLabel: 'WiFi' }
+  mobile: { key: 'dns_mobile', storeKey: 'pingpimp_auto_dns_custom_mobile', netLabel: 'Mobile Data' },
+  wifi:   { key: 'dns_wifi',   storeKey: 'pingpimp_auto_dns_custom_wifi',   netLabel: 'WiFi' }
 };
 
 async function loadAutoDnsOptions(net) {
   const cfg = AUTO_DNS_CFG[net];
-  const savedHost = await readModuleFile(cfg.file);
+  const savedHost = await ppGet(cfg.key);
   let selectedKey;
-  if (!savedHost) selectedKey = 'default';
-  else if (savedHost === 'default') selectedKey = 'default';
+  if (!savedHost || savedHost === 'default') selectedKey = 'default';
   else selectedKey = reverseDnsLookup(savedHost);
-  if (selectedKey === 'google') selectedKey = 'default'; // file lama berisi fallback Google
 
   if (selectedKey === 'custom') {
     S.autoDns[net].customInput = savedHost;
@@ -923,7 +967,7 @@ async function onAutoDnsChange(net, value, text) {
     const prev = lsGet(cfg.storeKey) || '';
     S.autoDns[net].customInput = prev;
     if (prev) {
-      await exec('echo "' + prev + '" > /data/adb/modules/PingPimp/' + cfg.file);
+      await ppSet(cfg.key, prev);
       triggerAutoDnsFlip();
       toast('Auto DNS (' + cfg.netLabel + '): ' + prev);
     } else {
@@ -934,7 +978,7 @@ async function onAutoDnsChange(net, value, text) {
 
   const host = value === 'default' ? 'default' : (dnsMap[value] || 'default');
   try {
-    await exec('echo "' + host + '" > /data/adb/modules/PingPimp/' + cfg.file);
+    await ppSet(cfg.key, host);
     triggerAutoDnsFlip();
     toast('Auto DNS (' + cfg.netLabel + '): ' + text);
   } catch (e) { toast('Failed to save Auto DNS'); }
@@ -946,7 +990,7 @@ async function applyAutoCustomDns(net) {
   if (!customDot) return toast('DNS address cannot be empty!');
   lsSet(cfg.storeKey, customDot);
   try {
-    await exec('echo "' + customDot + '" > /data/adb/modules/PingPimp/' + cfg.file);
+    await ppSet(cfg.key, customDot);
     triggerAutoDnsFlip();
     toast('Auto DNS (' + cfg.netLabel + ') custom applied: ' + customDot);
   } catch (e) { toast('Failed to apply custom DNS'); }
@@ -959,7 +1003,7 @@ async function initSwitches() {
   for (const key of Object.keys(SWITCH_DEFS)) {
     const def = SWITCH_DEFS[key];
     try {
-      const content = await exec('cat /data/adb/modules/PingPimp/' + def.file + ' 2>/dev/null');
+      const content = await ppGet(def.key);
       S.sw[key] = content.trim() === '1';
     } catch (e) { S.sw[key] = false; }
   }
@@ -972,7 +1016,7 @@ async function setSwitch(key, val) {
   const str = val ? '1' : '0';
   const cmd = val ? 'PingPimp --' + def.on : 'PingPimp --' + def.off;
   try {
-    await exec('echo "' + str + '" > /data/adb/modules/PingPimp/' + def.file);
+    await ppSet(def.key, str);
     await exec(cmd);
     toast(def.name + (val ? ' Enabled' : ' Disabled'));
   } catch (err) {
@@ -1130,7 +1174,7 @@ async function toggleApp(type, pkg, checked) {
 async function saveLog() {
   try {
     await exec('cp /data/adb/modules/PingPimp/log.txt /sdcard/PingPimp.log');
-    toast('Log berhasil disimpan ke /sdcard/PingPimp.log');
+    toast('Log successfully saved to /sdcard/PingPimp.log');
   } catch (e) { toast('Gagal menyimpan file log.'); }
 }
 
@@ -1231,8 +1275,10 @@ const SelectCtl = {
 };
 
 /* ============================================================
-   KOMPONEN: SourceToggle — segmented button M3 mode SEPARATE ROUNDED
-   (dua tombol rounded penuh berdiri sendiri, ala M3E button group)
+   KOMPONEN: SourceToggle — M3 CONNECTED segmented button group
+   (satu kontainer stadium ber-outline; segmen sama lebar tanpa gap,
+   divider 1dp antar segmen; slot ikon 18px KONSTAN — check menggantikan
+   ikon segmen in-place saat terpilih, spasi ikon->label tetap 8px)
    ============================================================ */
 const SourceToggle = {
   props: { modelValue: { type: String, default: 'user' } },
@@ -1250,8 +1296,10 @@ const SourceToggle = {
     "    :class=\"{ active: modelValue === opt.id }\"",
     '    :aria-pressed="String(modelValue === opt.id)"',
     '    @click="$emit(\'update:modelValue\', opt.id)">',
-    '    <span class="pp-seg-check"><pp-icon name="check"></pp-icon></span>',
-    '    <span class="pp-seg-ic"><pp-icon :name="opt.icon"></pp-icon></span>',
+    '    <span class="pp-seg-slot">',
+    '      <span class="pp-seg-check"><pp-icon name="check"></pp-icon></span>',
+    '      <span class="pp-seg-ic"><pp-icon :name="opt.icon"></pp-icon></span>',
+    '    </span>',
     '    <span class="pp-seg-label">{{ $t(opt.labelKey) }}</span>',
     '  </button>',
     '</div>'
@@ -1417,7 +1465,7 @@ const AppListTab = {
     '',
     '  <source-toggle v-model="view"></source-toggle>',
     '',
-    '  <div v-if="rows.length" class="pp-card">',
+    '  <transition-group v-if="rows.length" name="pp-apps" tag="div" class="pp-card">',
     '    <div v-for="pkg in rows" :key="pkg.packageName" class="app-item"',
     "      :class=\"{ 'app-item-active': isActive(pkg) }\">",
     '      <div class="app-item-leading">',
@@ -1430,7 +1478,7 @@ const AppListTab = {
     '      </div>',
     '      <switch-ctl :model-value="isActive(pkg)" @update:model-value="v => onToggle(pkg, v)"></switch-ctl>',
     '    </div>',
-    '  </div>',
+    '  </transition-group>',
     '  <div v-else class="list-state" :class="{ \'list-error\': S.apps.error }">{{ stateText }}</div>',
     '</div>'
   ].join('\n')
@@ -1471,14 +1519,14 @@ const ConfigTab = {
     '  <div class="pp-card">',
     '',
     '    <option-row icon="smart_toy" :title="$t(\'optAutoMode\', \'Smart Auto Mode\')"',
-    '      :desc="$t(\'tabConfigDesc0\', \'Automatically detect apps and adjust network preset dynamically.\')"',
+    '      :desc="$t(\'tabConfigDesc0\', \'PingPimp adjusts the network by itself, based on what you open.\')"',
     '      :ext="$t(\'optAutoModeExt\')"',
     '      @info="onInfo">',
     '      <switch-ctl :model-value="S.sw.auto" @update:model-value="v => setSwitch(\'auto\', v)"></switch-ctl>',
     '    </option-row>',
     '',
     '    <option-row icon="signal_cellular_alt" :title="$t(\'optAutoDnsMobile\', \'Data DNS\')"',
-    '      :desc="$t(\'optAutoDnsMobileDesc\', \'Private DNS applied while on mobile data.\')"',
+    '      :desc="$t(\'optAutoDnsMobileDesc\', \'The DNS used on mobile data.\')"',
     '      :ext="$t(\'optAutoDnsMobileExt\')" :disabled="!auto" @info="onInfo">',
     '      <select-ctl v-model="S.autoDns.mobile.value" :options="autoDnsOptions" :disabled="!auto"',
     '        :title="$t(\'optAutoDnsMobile\', \'Data DNS\')" @change="(v, text) => onAutoDnsChange(\'mobile\', v, text)"></select-ctl>',
@@ -1495,7 +1543,7 @@ const ConfigTab = {
     '    </div>',
     '',
     '    <option-row icon="wifi" :title="$t(\'optAutoDnsWifi\', \'WiFi DNS\')"',
-    '      :desc="$t(\'optAutoDnsWifiDesc\', \'Private DNS applied while on WiFi.\')"',
+    '      :desc="$t(\'optAutoDnsWifiDesc\', \'The DNS used on WiFi.\')"',
     '      :ext="$t(\'optAutoDnsWifiExt\')" :disabled="!auto" @info="onInfo">',
     '      <select-ctl v-model="S.autoDns.wifi.value" :options="autoDnsOptions" :disabled="!auto"',
     '        :title="$t(\'optAutoDnsWifi\', \'WiFi DNS\')" @change="(v, text) => onAutoDnsChange(\'wifi\', v, text)"></select-ctl>',
@@ -1516,21 +1564,21 @@ const ConfigTab = {
     '  <div class="pp-card">',
     '',
     '    <option-row icon="network_node" :title="$t(\'optPreset\', \'Preset Tweak\')"',
-    '      :desc="$t(\'tabConfigDesc1\', \'Set the preset tweak according to your needs.\')"',
+    '      :desc="$t(\'tabConfigDesc1\', \'Every activity has a preset. Just pick one.\')"',
     '      :ext="$t(\'optPresetExt\')" :disabled="auto" @info="onInfo">',
     '      <select-ctl v-model="S.presetValue" :options="presetOptions" :disabled="auto"',
     '        :title="$t(\'optPreset\', \'Preset Tweak\')" @change="onPresetChange"></select-ctl>',
     '    </option-row>',
     '',
     '    <option-row icon="memory" :title="$t(\'optTcp\', \'TCP Algorithm\')"',
-    '      :desc="$t(\'optTcpDesc\', \'Select the TCP congestion control algorithm.\')"',
+    '      :desc="$t(\'optTcpDesc\', \'Controls how your phone sends data.\')"',
     '      :ext="$t(\'optTcpExt\')" :disabled="auto" @info="onInfo">',
     '      <select-ctl v-model="S.tcp.value" :options="tcpOptions" :disabled="auto"',
     '        :title="$t(\'optTcp\', \'TCP Algorithm\')" @change="onTcpChange"></select-ctl>',
     '    </option-row>',
     '',
     '    <option-row icon="dns" :title="$t(\'optDns\', \'DNS Option\')"',
-    '      :desc="$t(\'tabConfigDesc2\', \'Secure your DNS queries with encrypted DNS providers.\')"',
+    '      :desc="$t(\'tabConfigDesc2\', \'Encrypts your DNS requests so nobody gets to snoop.\')"',
     '      :ext="$t(\'optDnsExt\')" :disabled="auto" @info="onInfo">',
     '      <select-ctl v-model="S.dns.value" :options="dnsOptions" :disabled="auto"',
     '        :title="$t(\'optDns\', \'DNS Option\')" @change="onDnsChange"></select-ctl>',
@@ -1551,19 +1599,19 @@ const ConfigTab = {
     '  <div class="pp-card">',
     '',
     '    <option-row icon="network_manage" :title="$t(\'optNic\', \'NIC Offloading\')"',
-    '      :desc="$t(\'tabConfigDesc6\', \'Disable GRO/GSO to bypass batching and reduce latency.\')"',
+    '      :desc="$t(\'tabConfigDesc6\', \'Packets go out right away instead of getting bundled. Lower ping.\')"',
     '      :ext="$t(\'optNicExt\')" :disabled="auto" @info="onInfo">',
     '      <switch-ctl :model-value="S.sw.nic" :disabled="auto" @update:model-value="v => setSwitch(\'nic\', v)"></switch-ctl>',
     '    </option-row>',
     '',
     '    <option-row icon="memory_alt" :title="$t(\'optIrq\', \'Hardware IRQ Affinity\')"',
-    '      :desc="$t(\'tabConfigDesc7\', \'Pin network interrupts to performance cores.\')"',
+    '      :desc="$t(\'tabConfigDesc7\', \'Network traffic only runs on your fastest CPU cores.\')"',
     '      :ext="$t(\'optIrqExt\')" :disabled="auto" @info="onInfo">',
     '      <switch-ctl :model-value="S.sw.irq" :disabled="auto" @update:model-value="v => setSwitch(\'irq\', v)"></switch-ctl>',
     '    </option-row>',
     '',
     '    <option-row icon="bolt" :title="$t(\'optKsoft\', \'Ksoftirqd Boost\')"',
-    '      :desc="$t(\'tabConfigDesc9\', \'Grant real-time priority to kernel network threads.\')"',
+    '      :desc="$t(\'tabConfigDesc9\', \'Network threads always get to go first.\')"',
     '      :ext="$t(\'optKsoftExt\')" :disabled="auto" @info="onInfo">',
     '      <switch-ctl :model-value="S.sw.ksoft" :disabled="auto" @update:model-value="v => setSwitch(\'ksoft\', v)"></switch-ctl>',
     '    </option-row>',
@@ -1573,31 +1621,31 @@ const ConfigTab = {
     '  <div class="pp-card">',
     '',
     '    <option-row icon="wifi" :title="$t(\'optNetState\', \'Disable Network State\')"',
-    '      :desc="$t(\'tabConfigDesc3\', \'Increase network speed by disabling netstats.\')"',
+    '      :desc="$t(\'tabConfigDesc3\', \'Turns off background network stats and WiFi scanning.\')"',
     '      :ext="$t(\'optNetStateExt\')" @info="onInfo">',
     '      <switch-ctl :model-value="S.sw.netstate" @update:model-value="v => setSwitch(\'netstate\', v)"></switch-ctl>',
     '    </option-row>',
     '',
     '    <option-row icon="wifi_tethering" :title="$t(\'optWifiPs\', \'WiFi Low Jitter\')"',
-    '      :desc="$t(\'optWifiPsDesc\', \'Disable Wi-Fi power save for consistent ping. Slightly increases battery use.\')"',
+    '      :desc="$t(\'optWifiPsDesc\', \'Keeps WiFi awake so ping stays flat. Costs a bit of battery.\')"',
     '      :ext="$t(\'optWifiPsExt\')" @info="onInfo">',
     '      <switch-ctl :model-value="S.sw.wifips" @update:model-value="v => setSwitch(\'wifips\', v)"></switch-ctl>',
     '    </option-row>',
     '',
     '    <option-row icon="lan" :title="$t(\'optConntrack\', \'ConnTrack Optimization\')"',
-    '      :desc="$t(\'optConntrackDesc\', \'Expand connection table to prevent silent drops under heavy load.\')"',
+    '      :desc="$t(\'optConntrackDesc\', \'Stops connections dropping silently when lots of apps are online.\')"',
     '      :ext="$t(\'optConntrackExt\')" @info="onInfo">',
     '      <switch-ctl :model-value="S.sw.conntrack" @update:model-value="v => setSwitch(\'conntrack\', v)"></switch-ctl>',
     '    </option-row>',
     '',
     '    <option-row icon="vpn_lock" :title="$t(\'optIpv6\', \'Disable IPv6 Connection\')"',
-    '      :desc="$t(\'tabConfigDesc4\', \'Force IPv4 routing to prevent IPv6 DNS leaks.\')"',
+    '      :desc="$t(\'tabConfigDesc4\', \'Forces IPv4 only, which tends to be more stable.\')"',
     '      :ext="$t(\'optIpv6Ext\')" @info="onInfo">',
     '      <switch-ctl :model-value="S.sw.ipv6" @update:model-value="v => setSwitch(\'ipv6\', v)"></switch-ctl>',
     '    </option-row>',
     '',
     '    <option-row icon="data_saver_on" :title="$t(\'optDataSaver\', \'Enable Data Saver\')"',
-    '      :desc="$t(\'tabConfigDesc5\', \'Restricts background data and limit internet speed.\')"',
+    '      :desc="$t(\'tabConfigDesc5\', \'Caps your speed and blocks background data. Saves quota.\')"',
     '      :ext="$t(\'optDataSaverExt\')" @info="onInfo">',
     '      <switch-ctl :model-value="S.sw.saver" @update:model-value="v => setSwitch(\'saver\', v)"></switch-ctl>',
     '    </option-row>',
@@ -1633,32 +1681,34 @@ const SettingsTab = {
     '  <div class="pp-section-title">{{ $t(\'secAppearance\', \'Appearance\') }}</div>',
     '  <div class="pp-card">',
     '',
-    '    <option-row icon="wallpaper" :title="$t(\'optBanner\', \'Custom Banner\')"',
-    '      :desc="$t(\'optBannerDesc\', \'Upload a custom home banner image (GIF, JPG, PNG, WebP).\')"',
-    '      :ext="$t(\'optBannerExt\')" @info="onInfo">',
-    '    </option-row>',
-    '    <div class="pp-banner-actions">',
-    '      <button type="button" class="pp-btn" @click="pickBanner">',
-    '        <pp-icon name="upload"></pp-icon>',
-    '        <span>{{ $t(\'btnBannerUpload\', \'Upload\') }}</span>',
-    '      </button>',
-    '      <button type="button" class="pp-btn" @click="resetBanner">',
-    '        <pp-icon name="delete"></pp-icon>',
-    '        <span>{{ $t(\'btnBannerReset\', \'Reset\') }}</span>',
-    '      </button>',
-    '      <input type="file" ref="fileInput" style="display:none;"',
-    '        accept=".gif,.jpg,.jpeg,.png,.webp,image/gif,image/jpeg,image/png,image/webp"',
-    '        @change="onBannerFile" />',
+    '    <div class="pp-option-group">',
+    '      <option-row icon="wallpaper" :title="$t(\'optBanner\', \'Custom Banner\')"',
+    '        :desc="$t(\'optBannerDesc\', \'Put your own picture up as the home banner.\')"',
+    '        :ext="$t(\'optBannerExt\')" @info="onInfo">',
+    '      </option-row>',
+    '      <div class="pp-banner-actions">',
+    '        <button type="button" class="pp-btn" @click="pickBanner">',
+    '          <pp-icon name="upload"></pp-icon>',
+    '          <span>{{ $t(\'btnBannerUpload\', \'Upload\') }}</span>',
+    '        </button>',
+    '        <button type="button" class="pp-btn" @click="resetBanner">',
+    '          <pp-icon name="delete"></pp-icon>',
+    '          <span>{{ $t(\'btnBannerReset\', \'Reset\') }}</span>',
+    '        </button>',
+    '        <input type="file" ref="fileInput" style="display:none;"',
+    '          accept=".gif,.jpg,.jpeg,.png,.webp,image/gif,image/jpeg,image/png,image/webp"',
+    '          @change="onBannerFile" />',
+    '      </div>',
     '    </div>',
     '',
     '    <option-row icon="bottom_navigation" :title="$t(\'optNavStyle\', \'Floating Navigation Bar\')"',
-    '      :desc="$t(\'optNavStyleDesc\', \'Swap the fixed bottom bar for a floating bar that hides on scroll.\')"',
+    '      :desc="$t(\'optNavStyleDesc\', \'The bottom bar floats and tucks away when you scroll.\')"',
     '      :ext="$t(\'optNavStyleExt\')" @info="onInfo">',
     '      <switch-ctl :model-value="S.floatingNav" @update:model-value="v => applyNav(v, true)"></switch-ctl>',
     '    </option-row>',
     '',
     '    <option-row icon="palette" :title="$t(\'optMonet\', \'Dynamic Color (Monet)\')"',
-    '      :desc="$t(\'optMonetDesc\', \'Follow your system wallpaper colors.\')"',
+    '      :desc="$t(\'optMonetDesc\', \'Colors follow your system wallpaper.\')"',
     '      :ext="$t(\'optMonetExt\')" @info="onInfo">',
     '      <switch-ctl :model-value="S.monetOn" @update:model-value="v => applyMonet(v, true)"></switch-ctl>',
     '    </option-row>',
@@ -1668,13 +1718,13 @@ const SettingsTab = {
     '  <div class="pp-card">',
     '',
     '    <option-row clickable icon="translate" :title="$t(\'optLang\', \'Language\')"',
-    '      :desc="$t(\'optLangDesc\', \'Change PingPimp language.\')" :ext="$t(\'optLangExt\')"',
+    '      :desc="$t(\'optLangDesc\', \'Change the PingPimp language.\')" :ext="$t(\'optLangExt\')"',
     '      @info="onInfo" @click="S.langDialog = true">',
     '      <pp-icon name="chevron_right" class="option-arrow"></pp-icon>',
     '    </option-row>',
     '',
     '    <option-row clickable icon="save" :title="$t(\'optSaveLog\', \'Save Log\')"',
-    '      :desc="$t(\'optSaveLogDesc\', \'Export PingPimp operational log to internal storage.\')"',
+    '      :desc="$t(\'optSaveLogDesc\', \'Save the log file to internal storage.\')"',
     '      :ext="$t(\'optSaveLogExt\')" @info="onInfo" @click="saveLog">',
     '      <pp-icon name="chevron_right" class="option-arrow"></pp-icon>',
     '    </option-row>',

@@ -25,8 +25,8 @@
 html {
   --font-app: Roboto, "Roboto Flex", "Segoe UI", -apple-system, "SF Pro Display", sans-serif;
 
-  /* Material 3 Expressive — shape scale */
-  --shape-card: 24px;
+  /* Shape scale — replika luminegram: radius luar grup 44px/2.75 ≈ 16dp */
+  --shape-card: 16px;
   --shape-dialog: 28px;
   --shape-sheet: 28px;
   --shape-field: 14px;
@@ -34,13 +34,23 @@ html {
   --shape-search: 100px;
   --shape-seg: 100px;
 
-  /* Motion token Expressive: spring overshoot untuk momen tekan/pilih */
+  /* Motion token M3E (Task 29) — skema gerak terbagi per jenis perubahan:
+     EFFECTS (warna/opacity, bounds tetap) = pendek + standard;
+     SPATIAL (posisi/bounds/skala) = decel saat masuk, accel saat keluar;
+     momen tekan/pilih ekspresif = spring overshoot.
+     Semua transisi interruptible dan konvergen ke state akhir. */
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-decel: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-accel: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --dur-xs: 0.1s;
+  --dur-sm: 0.2s;
+  --dur-md: 0.3s;
+  --dur-lg: 0.45s;
   --dur-press: 0.35s;
 
-  --list-min-h: 68px;
-  --card-gap: 16px;
+  --list-min-h: 62px;
+  --card-gap: 14px;
 
   /* Pemisah lapisan hamburger */
   --stack-div-h: 3px;
@@ -53,6 +63,9 @@ html {
   --fs-desc: 13px;
   --fs-btn: 14px; --fw-btn: 600;
 
+  /* Seed palette — kembali ke basis M3E v14 (Task 26): warna card,
+     switch, label & ikon mengikuti sistem dinamis ini lagi; override
+     penuh oleh Monet saat html[data-monet="on"] */
   --s-bg: #141218;
   --s-surface: #211f26;
   --s-surface-2: #2b2930;
@@ -69,13 +82,31 @@ html {
   --s-on-secondary-container: #e8def8;
   --s-switch-off: #36343b;
 
+  /* Token komponen luminegram — Task 26: GEOMETRI replika tetap,
+     WARNA kembali dinamis mengikuti sistem v14 (seed + monet):
+     card=surface · value=onSurfaceVariant · track-on=primary ·
+     track-off=switch-off · knob(off)=onSurfaceVariant
+     (knob ON memakai onPrimary langsung di rule switch) */
+  --lum-card: var(--app-surface);
+  --lum-value: var(--app-on-surface-variant);
+  --lum-track-on: var(--app-primary);
+  --lum-track-off: var(--switch-off);
+  --lum-knob: var(--app-on-surface-variant);
+  --lum-radius-outer: 16px;
+  --lum-radius-inner: 5px;
+  --lum-gap: 2px;
+
   --elev-card: none;
   --elev-float: 0 4px 8px 3px rgba(0, 0, 0, 0.15), 0 1px 3px 0 rgba(0, 0, 0, 0.30);
+  /* Task 28: elevasi khusus pil navigasi floating — lebih tegas agar
+     terpisah jelas dari konten yang di-scroll di belakangnya */
+  --elev-float-nav: 0 6px 16px 4px rgba(0, 0, 0, 0.22), 0 2px 5px 0 rgba(0, 0, 0, 0.32);
   --elev-thumb: none;
   --scrim-color: rgba(0, 0, 0, 0.32);
 }
 @media (prefers-color-scheme: light) {
   html {
+    /* Light — kembali ke basis M3E v14 (ungu baseline; Task 26) */
     --s-bg: #f7f2fa;
     --s-surface: #f3edf7;
     --s-surface-2: #ece6f0;
@@ -92,6 +123,7 @@ html {
     --s-on-secondary-container: #1d192b;
     --s-switch-off: #e6e0e9;
     --elev-float: 0 4px 8px 3px rgba(0, 0, 0, 0.06), 0 1px 3px 0 rgba(0, 0, 0, 0.18);
+    --elev-float-nav: 0 6px 16px 4px rgba(0, 0, 0, 0.10), 0 2px 5px 0 rgba(0, 0, 0, 0.16);
   }
 }
 
@@ -120,9 +152,12 @@ html {
 @media (prefers-color-scheme: light) { html { color-scheme: light; } }
 
 html[data-nav="bar"]      { --body-pad: calc(100px + var(--window-inset-bottom, 0px)); }
-html[data-nav="floating"] { --body-pad: calc(92px + var(--window-inset-bottom, 0px)); }
+html[data-nav="floating"] { --body-pad: calc(96px + var(--window-inset-bottom, 0px)); }
 
 html[data-monet="on"] {
+  /* Monet AKTIF PENUH lagi (pemulihan Task 26): seluruh surface system
+     (bg · card · label seksi · switch) mengikuti warna dinamis manager;
+     gaya luminegram hidup di ATAS token ini — geometri tetap replika. */
   --app-primary: var(--primary, var(--s-primary));
   --app-on-primary: var(--onPrimary, var(--s-on-primary));
   --app-primary-container: var(--primaryContainer, var(--s-primary-container));
@@ -154,7 +189,9 @@ body {
   min-height: 100vh;
   padding-top: calc(88px + var(--window-inset-top, 0px));
   padding-bottom: var(--body-pad);
-  transition: background-color 0.25s ease, color 0.25s ease;
+  transition: background-color var(--dur-sm) var(--ease-standard),
+              color var(--dur-sm) var(--ease-standard),
+              padding var(--dur-md) var(--ease-standard);
 }
 
 /* === SISTEM IKON === */
@@ -189,7 +226,7 @@ header::before {
 /* === LAYOUT === */
 .main { max-width: 500px; margin: 0 auto; padding: 0 14px; }
 .tab-content { display: none; }
-.tab-content.active { display: block; animation: tabInM3E 0.35s var(--ease-standard); }
+.tab-content.active { display: block; animation: tabInM3E var(--dur-md) var(--ease-decel); }
 @keyframes tabInM3E {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -204,35 +241,66 @@ header::before {
 .tab-content .pp-section-title:first-child { margin-top: 4px; }
 
 /* ============================================================
-   KARTU — grouped + PEMISAH HAMBURGER
+   KARTU — replika luminegram "slit group" (diukur, density 2.75):
+   satu grup = tumpukan row-card; slit 2px warna page antar baris;
+   sudut luar grup 16px, sudut interior 5px; flat tanpa elevasi;
+   warna card = --app-surface (dinamis: seed v14 / Monet — Task 26)
    ============================================================ */
 .pp-card,
-.device-info,
-.dev-card {
-  background-color: var(--app-surface);
-  border-radius: var(--shape-card);
+.device-info {
   display: flex; flex-direction: column;
-  overflow: hidden;
+  row-gap: var(--lum-gap);
   margin-bottom: var(--card-gap);
-  transition: background-color 0.25s ease;
 }
-.pp-option { padding: 14px 16px; min-height: var(--list-min-h); }
-.pp-inline-field { padding: 2px 16px 14px 16px; }
+.dev-card {
+  display: flex; flex-direction: column;
+  background: var(--lum-card);
+  border-radius: var(--lum-radius-outer);
+  padding: 18px;
+  margin-bottom: var(--card-gap);
+}
+
+/* Row-card: tiap baris kartu sendiri; radius mengikuti posisi
+   (baris pertama/terakhir membawa sudut luar grup, interior kecil) */
+.pp-card > .pp-option,
+.pp-card > .pp-inline-field,
+.pp-card > .pp-banner-actions,
+.pp-card > .app-item,
+.pp-card > .pp-option-group,
+.device-info > .device-info-item {
+  background: var(--lum-card);
+  border-radius: var(--lum-radius-inner);
+}
+.pp-card > :first-child,
+.device-info > :first-child {
+  border-top-left-radius: var(--lum-radius-outer);
+  border-top-right-radius: var(--lum-radius-outer);
+}
+.pp-card > :last-child,
+.device-info > :last-child {
+  border-bottom-left-radius: var(--lum-radius-outer);
+  border-bottom-right-radius: var(--lum-radius-outer);
+}
+
+.pp-option { padding: 15px 20px; min-height: var(--list-min-h); }
+.pp-inline-field { padding: 4px 20px 16px 20px; }
 .device-info { padding: 0; }
-.dev-card { padding: 18px; }
 
-/* Pemisah lapisan: tebal + transparan (device-info TIDAK termasuk —
-   memakai divider inset M3 1px sejajar teks) */
-.pp-option + .pp-option::before,
-.pp-inline-field + .pp-option::before,
-.pp-banner-actions + .pp-option::before,
-.app-item + .app-item::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0;
-  height: var(--stack-div-h);
-  background: var(--stack-div-color);
+.app-item { padding: 14px 20px; min-height: 62px; }
+
+/* === GRUP OPSI (Task 27): opsi + aksinya jadi SATU row-card ===
+   Dipakai Custom Banner: nama opsi + tombol Upload/Reset menyatu tanpa slit
+   di antaranya; satu divider (slit 2px) tetap ada di bawah tombol, tepat
+   sebelum baris opsi berikutnya. Konten anak (pp-option / pp-banner-actions)
+   tidak lagi jadi row-card sendiri karena bukan direct child .pp-card. */
+.pp-option-group {
+  display: flex; flex-direction: column;
 }
-
-.app-item { padding: 12px 16px; min-height: 68px; }
+.pp-option-group > .pp-option,
+.pp-option-group > .pp-banner-actions {
+  background: transparent;
+  border-radius: 0;
+}
 
 /* === BARIS OPSI === */
 .pp-option {
@@ -257,7 +325,7 @@ header::before {
   font-size: var(--fs-desc); color: var(--app-on-surface-variant); line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.pp-option-clickable { cursor: pointer; transition: background-color 0.2s ease; }
+.pp-option-clickable { cursor: pointer; transition: background-color var(--dur-sm) var(--ease-standard); }
 .pp-option-clickable:active { background-color: color-mix(in srgb, var(--app-on-surface) 7%, transparent); }
 .option-arrow { font-size: 22px; color: var(--app-on-surface-variant); margin-left: auto; }
 
@@ -269,7 +337,7 @@ header::before {
   border-radius: var(--shape-field); border: none;
   background-color: var(--app-surface-2); color: var(--app-on-surface);
   font-size: 14px; font-family: inherit; outline: none;
-  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+  transition: background-color var(--dur-sm) var(--ease-standard), box-shadow var(--dur-sm) var(--ease-standard);
 }
 .pp-input:focus { box-shadow: inset 0 0 0 2px var(--app-primary); }
 .pp-field-row .pp-btn { flex: 0 0 auto; height: 48px; padding: 0 20px; }
@@ -283,7 +351,7 @@ header::before {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   transition: transform var(--dur-press) var(--ease-spring),
               border-radius var(--dur-press) var(--ease-spring),
-              background-color 0.25s ease, opacity 0.15s ease;
+              background-color var(--dur-sm) var(--ease-standard), opacity var(--dur-sm) var(--ease-standard);
   cursor: pointer; border: none; font-family: inherit;
 }
 .pp-btn:active { transform: scale(0.96); border-radius: 10px; }
@@ -295,149 +363,138 @@ header::before {
 .pp-option-control { display: flex; align-items: center; flex-shrink: 0; }
 .pp-select-value {
   display: flex; align-items: center;
-  color: var(--app-on-surface-variant);
+  color: var(--lum-value);
   background: var(--app-surface-2);
   border: none; cursor: pointer;
   border-radius: 100px;
   padding: 8px 14px; min-height: 40px; gap: 4px;
   font-size: 14px; font-weight: 500; font-family: inherit;
   max-width: 180px;
-  transition: border-radius var(--dur-press) var(--ease-spring), background-color 0.2s ease, opacity 0.2s ease;
+  transition: border-radius var(--dur-press) var(--ease-spring), background-color var(--dur-sm) var(--ease-standard), opacity var(--dur-sm) var(--ease-standard);
 }
 .pp-select-value:active { border-radius: 12px; background: var(--app-surface-3); }
 .pp-select-value:disabled { opacity: 0.45; pointer-events: none; }
 .pp-select-value-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pp-select-value .pp-icon { font-size: 20px; color: var(--app-on-surface-variant); margin-left: 2px; }
 
-/* === SWITCH — presisi spec m3.material.io/components/switch/specs
-   + posisi handle dari source Compose M3 Switch.kt:
-   - track 52x32dp corner full, outline 2dp (off = surfaceContainerHighest
-     + outline; on = primary, outline primary)
-   - handle varian "with icon": off 24dp @x4 (onSurfaceVariant),
-     on 24dp @x24 = maxBound (onPrimary), pressed 28dp @x2/@x22 —
-     memenuhi tinggi dalam track (32 - 2x2 outline) & pusat invarian
-   - ikon SELALU 16dp, TIDAK bergerak saat ditekan (pusat off x16 / on x36);
-     X = cutout warna track (surfaceContainerHighest), check = primary
-   - motion material-web: tekan 100ms linear, lepas 250ms spring
-   (rule dasar LTR; RTL memakai anchor kanan di bawah) */
-.pp-switch { position: relative; display: inline-block; width: 52px; height: 32px; flex-shrink: 0; z-index: 2; }
+/* === SWITCH — GEOMETRI replika luminegram (diukur, density 2.75),
+   WARNA kembali v14 (Task 26): track 47x28 pill FLAT tanpa outline,
+   TANPA ikon X/check; off: knob 15px ring kiri 7px warna
+   onSurfaceVariant; on: knob 20px ring kanan 5px warna onPrimary
+   (thumb membesar saat aktif — perilaku grow Material);
+   tekan: knob 24px, pusat invarian; target sentuh 48px;
+   motion: tekan 100ms linear, lepas 250ms spring */
+.pp-switch { position: relative; display: inline-block; width: 47px; height: 28px; flex-shrink: 0; z-index: 2; }
 .pp-switch input { opacity: 0; width: 0; height: 0; }
-/* Target sentuh M3 48dp — area klik saja, nol efek layout */
+/* Target sentuh 48dp — area klik saja, nol efek layout */
 .pp-switch::before {
   content: ""; position: absolute; left: 50%; top: 50%;
   width: 48px; height: 48px; transform: translate(-50%, -50%);
 }
 .pp-switch-slider {
   position: absolute; inset: 0; cursor: pointer;
-  background: var(--switch-off); border: 2px solid var(--app-outline);
-  border-radius: 100px;
-  transition: background-color 0.25s ease, border-color 0.25s ease;
+  background: var(--lum-track-off); border: none;
+  border-radius: 14px;
+  transition: background-color var(--dur-sm) var(--ease-standard);
 }
 .pp-switch-slider::before {
   content: ""; position: absolute;
-  top: 50%; left: 4px; width: 24px; height: 24px; border-radius: 50%;
-  background: var(--app-on-surface-variant);
+  top: 50%; left: 7px; width: 15px; height: 15px; border-radius: 50%;
+  background: var(--lum-knob);
   transform: translate(0, -50%);
-  transition: transform 0.25s var(--ease-spring),
-              width 0.25s var(--ease-spring), height 0.25s var(--ease-spring),
-              background-color 0.25s ease;
+  transition: left var(--dur-md) var(--ease-spring),
+              width var(--dur-md) var(--ease-spring), height var(--dur-md) var(--ease-spring),
+              background-color var(--dur-sm) var(--ease-standard);
 }
-/* Tekan: 100ms linear (material-web pressed handle) */
+/* Tekan: 100ms linear */
 .pp-switch:active .pp-switch-slider::before {
   transition-duration: 0.1s; transition-timing-function: linear;
 }
-/* State layer M3: hover 8% / pressed 12% di atas handle
-   (off: onSurface di atas onSurfaceVariant; on: primary di atas onPrimary) */
+/* State layer M3 di atas handle (formula v14): hover off = onSurface
+   di atas onSurfaceVariant; hover on = primary di atas onPrimary */
 .pp-switch:hover input:not(:checked) + .pp-switch-slider::before {
-  background: color-mix(in srgb, var(--app-on-surface-variant) 92%, var(--app-on-surface));
+  background: color-mix(in srgb, var(--lum-knob) 92%, var(--app-on-surface));
 }
 .pp-switch:hover input:checked + .pp-switch-slider::before {
   background: color-mix(in srgb, var(--app-on-primary) 92%, var(--app-primary));
 }
 .pp-switch:active input:not(:checked) + .pp-switch-slider::before {
-  width: 28px; height: 28px;
-  transform: translate(-2px, -50%);
-  background: color-mix(in srgb, var(--app-on-surface-variant) 88%, var(--app-on-surface));
+  width: 24px; height: 24px;
+  left: 3px;
 }
 .pp-switch input:checked + .pp-switch-slider {
-  background: var(--app-primary); border-color: var(--app-primary);
+  background: var(--lum-track-on);
 }
 .pp-switch input:checked + .pp-switch-slider::before {
+  width: 20px; height: 20px;
+  left: 22px;
   background: var(--app-on-primary);
-  transform: translate(20px, -50%);
 }
 .pp-switch:active input:checked + .pp-switch-slider::before {
-  width: 28px; height: 28px;
-  transform: translate(18px, -50%);
-  background: color-mix(in srgb, var(--app-on-primary) 88%, var(--app-primary));
+  width: 24px; height: 24px;
+  left: 20px;
 }
-/* Ikon status: 16dp konstan, center off x16 / on x36 (ikut pusat handle) */
-.pp-switch-slider::after {
-  content: "\e5cd";
-  font-family: 'Material Symbols Outlined';
-  font-weight: normal; font-style: normal; line-height: 1;
-  -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga';
-  position: absolute; top: 50%; left: 16px;
-  transform: translate(-50%, -50%);
-  font-size: 16px;
-  color: var(--app-surface-3);
-  pointer-events: none;
-  transition: left 0.25s var(--ease-spring), color 0.25s ease;
-}
-.pp-switch input:checked + .pp-switch-slider::after {
-  content: "\e5ca";
-  left: 36px;
-  color: var(--app-primary);
-}
+/* Disabled: redup whole control */
+.pp-switch input:disabled + .pp-switch-slider { opacity: 0.45; cursor: default; }
 
-/* === APP SOURCE TOGGLE — segmented button M3, mode SEPARATE ROUNDED
-   (ala M3E button group "separate connectors"):
-   - dua tombol berdiri sendiri, gap 10px, masing-masing flex:1
-   - sudut penuh (stadium) di SEMUA sudut — bukan hanya sudut luar grup
-   - outline 1dp role outline; terpilih = secondaryContainer +
-     ikon Check menggantikan ikon segmen (leading-icon swap M3);
-     tekan = state layer onSurface 8% */
-.pp-segment { display: flex; gap: 10px; margin-bottom: 14px; }
+/* === APP SOURCE TOGGLE — PILL ROUNDED (Task 29) ===
+   Kembali ke gaya PIL seperti v15-v17 (dua tombol stadium TERPISAH),
+   dipresisikan sesuai M3E:
+   - lebar identik (flex 1 1 0) + gap 8px (grid spacing M3) — simetri stabil;
+   - slot ikon 18px KONSTAN (teknik Task 28 dipertahankan): ikon konten dan
+     check bertukar in-place, nol layout shift saat swap;
+   - unselected = outline 1dp role outline; selected = fill secondaryContainer
+     dengan border transparan (tanpa outline ganda di atas fill);
+   - tekan = state layer onSurface 8%; label aktif weight 600 (pola pil owner);
+   - transisi = effects spec M3 (200ms standard); check masuk pakai spring. */
+.pp-segment { display: flex; gap: 8px; margin-bottom: 14px; }
 .pp-segment-btn {
-  flex: 1; min-height: 48px; padding: 0 16px;
-  display: flex; align-items: center; justify-content: center;
-  background: transparent; border: 1px solid var(--app-outline);
-  border-radius: 100px;
+  flex: 1 1 0; min-width: 0; min-height: 48px; padding: 0 16px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: transparent;
+  border: 1px solid var(--app-outline);
+  border-radius: var(--shape-seg);
   color: var(--app-on-surface); font-size: 14px; font-weight: 500;
-  font-family: inherit; cursor: pointer; white-space: nowrap;
-  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+  font-family: inherit; cursor: pointer; white-space: nowrap; overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-sm) var(--ease-standard),
+              color var(--dur-sm) var(--ease-standard),
+              border-color var(--dur-sm) var(--ease-standard);
 }
 .pp-segment-btn:active { background: color-mix(in srgb, var(--app-on-surface) 8%, transparent); }
 .pp-segment-btn.active {
-  background: var(--app-secondary-container); color: var(--app-on-secondary-container);
-  border-color: var(--app-secondary-container);
+  background: var(--app-secondary-container);
+  color: var(--app-on-secondary-container);
+  border-color: transparent;
   font-weight: 600;
 }
 .pp-segment-btn.active:active {
   background: color-mix(in srgb, var(--app-on-secondary-container) 12%, var(--app-secondary-container));
 }
-/* Slot ikon 18dp: unselected = ikon konten, selected = check */
-.pp-segment-btn .pp-seg-ic,
-.pp-segment-btn .pp-seg-check {
-  flex: 0 0 auto; width: 18px; height: 18px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 18px; overflow: hidden;
-  transition: width var(--dur-press) var(--ease-spring),
-              margin var(--dur-press) var(--ease-spring),
-              opacity var(--dur-press) var(--ease-standard),
-              transform var(--dur-press) var(--ease-spring);
+/* Slot ikon 18dp KONSTAN: ikon konten dan check bertumpuk di posisi sama;
+   fade standard + scale spring (seleksi M3E) */
+.pp-segment-btn .pp-seg-slot {
+  position: relative; flex: 0 0 18px; width: 18px; height: 18px;
 }
-.pp-segment-btn .pp-seg-ic { margin-inline-end: 8px; opacity: 1; transform: scale(1); }
-.pp-segment-btn .pp-seg-check { margin-inline-end: 0; width: 0; opacity: 0; transform: scale(0.5); }
-.pp-segment-btn.active .pp-seg-ic { margin-inline-end: 0; width: 0; opacity: 0; transform: scale(0.5); }
-.pp-segment-btn.active .pp-seg-check { margin-inline-end: 8px; width: 18px; opacity: 1; transform: scale(1); }
+.pp-segment-btn .pp-seg-slot .pp-seg-ic,
+.pp-segment-btn .pp-seg-slot .pp-seg-check {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  transition: opacity var(--dur-sm) var(--ease-standard),
+              transform var(--dur-md) var(--ease-spring);
+}
+.pp-segment-btn .pp-seg-slot .pp-seg-ic    { opacity: 1; transform: scale(1); }
+.pp-segment-btn .pp-seg-slot .pp-seg-check { opacity: 0; transform: scale(0.5); }
+.pp-segment-btn.active .pp-seg-slot .pp-seg-ic    { opacity: 0; transform: scale(0.5); }
+.pp-segment-btn.active .pp-seg-slot .pp-seg-check { opacity: 1; transform: scale(1); }
 
 /* === SEARCH === */
 .pp-search {
   position: relative; display: flex; align-items: center;
   margin-bottom: 14px; background: var(--app-surface-2);
   border-radius: var(--shape-search);
-  transition: box-shadow 0.25s ease, background-color 0.25s ease;
+  transition: box-shadow var(--dur-sm) var(--ease-standard), background-color var(--dur-sm) var(--ease-standard);
 }
 .pp-search .pp-icon {
   position: absolute; left: 16px; font-size: 20px;
@@ -523,7 +580,10 @@ header::before {
   color: var(--app-on-primary-container);
   font-size: 24px;
 }
-.device-info-item.identity .label span:not(.pp-icon) {
+/* Child combinator '>' penting: tanpa itu rule ikut match span glyph DI DALAM
+   ikon (descendant), memaksa glyph ponsel 12px — bug Task 27: ukuran glyph
+   ikon ponsel harus 24px, sama persis seperti ikon boost/isolate (tab-header). */
+.device-info-item.identity .label > span:not(.pp-icon) {
   grid-area: overline;
   font-size: 12px; font-weight: 500; letter-spacing: 0.1px;
   color: var(--app-on-surface-variant);
@@ -537,13 +597,8 @@ header::before {
   text-align: start; overflow-wrap: anywhere;
 }
 
-/* (3) Divider inset M3 — mulai sejajar teks label (20 pad + 20 ikon + 14 gap) */
-.device-info-item + .device-info-item::before {
-  content: ""; position: absolute; top: 0;
-  inset-inline-start: 54px; inset-inline-end: 0;
-  height: 1px; background: var(--app-hairline);
-}
-.device-info-item.identity::before { content: none; }
+/* (3) Divider inset M3 — DIGANTI slit luminegram (row-card terpisah,
+   lihat blok KARTU); aturan divider lama dihapus */
 
 /* === DEV CARD === */
 .dev-profile { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
@@ -557,13 +612,13 @@ header::before {
 /* === CUSTOM BANNER ACTIONS === */
 .pp-banner-actions {
   display: flex; gap: 10px;
-  padding: 2px 16px 14px 16px;
+  padding: 4px 20px 16px 20px;
 }
 .pp-banner-actions .pp-btn { flex: 1; height: 48px; }
 .pp-banner-actions .pp-icon { font-size: 18px; }
 
 /* === APP LIST — baris state layer M3 saat ditekan === */
-.app-item { display: flex; align-items: center; gap: 14px; position: relative; transition: background-color 0.2s ease; }
+.app-item { display: flex; align-items: center; gap: 14px; position: relative; transition: background-color var(--dur-sm) var(--ease-standard); }
 .app-item:active { background-color: color-mix(in srgb, var(--app-on-surface) 8%, transparent); }
 .app-item-leading { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
 .app-item .app-icon { width: 46px; height: 46px; border-radius: 12px; object-fit: contain; flex-shrink: 0; }
@@ -574,11 +629,24 @@ header::before {
 }
 .app-item .app-icon-placeholder .pp-icon { font-size: 24px; }
 .app-item-text { display: flex; flex-direction: column; justify-content: center; min-width: 0; flex: 1; }
-.app-item-label { font-size: 15px; font-weight: 500; color: var(--app-on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.app-item-label { font-size: 15px; font-weight: 500; color: var(--app-on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; transition: color var(--dur-sm) var(--ease-standard); }
 .app-item-pkg { font-size: 12px; color: var(--app-on-surface-variant); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .app-item.app-item-active .app-item-label { color: var(--app-primary); font-weight: 600; }
 .list-state { text-align: center; padding: 28px 16px; color: var(--app-on-surface-variant); font-size: 14px; opacity: 0.75; }
 .list-state.list-error { color: #ff6b6b; opacity: 1; }
+
+/* Task 29: reorder aplikasi terpilih (boost/isolate) = FLIP transition-group
+   Vue — baris meluncur mulus ke posisi baru, bukan lompat. .pp-card menjadi
+   containing block untuk item yang leave (position absolute). */
+.pp-card { position: relative; }
+.pp-apps-move { transition: transform var(--dur-md) var(--ease-decel); }
+.pp-apps-enter-active { transition: opacity var(--dur-sm) var(--ease-standard); }
+.pp-apps-enter-from { opacity: 0; }
+.pp-apps-leave-active {
+  position: absolute; inset-inline: 0;
+  transition: opacity 0.15s var(--ease-accel);
+}
+.pp-apps-leave-to { opacity: 0; }
 
 /* ============================================================
    BOTTOM NAVIGATION — 2 MODE (Material 3 / M3E)
@@ -589,29 +657,35 @@ header::before {
   display: flex; align-items: stretch;
   touch-action: pan-y;        /* FIX SWIPE: horizontal kita tangani sendiri */
   -webkit-user-drag: none;
-  transition: transform 0.35s cubic-bezier(0.2, 0, 0, 1), opacity 0.3s ease, background-color 0.25s ease, box-shadow 0.25s ease;
+  /* Task 29: muncul = decel; menyusup pergi = accel (split di rule .nav-hidden) */
+  transition: transform var(--dur-md) var(--ease-decel),
+              opacity var(--dur-sm) var(--ease-standard),
+              background-color var(--dur-sm) var(--ease-standard),
+              box-shadow var(--dur-sm) var(--ease-standard);
 }
 html[data-nav="floating"] .bottom-navigation.nav-hidden {
   transform: translateX(-50%) translateY(calc(100% + 30px + var(--window-inset-bottom, 0px)));
   opacity: 0; pointer-events: none;
+  transition: transform 0.25s var(--ease-accel),
+              opacity 0.2s var(--ease-accel);
 }
 .nav-button {
   background: none; border: none; cursor: pointer; font-family: inherit;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   color: var(--app-on-surface-variant); padding: 0; position: relative;
-  transition: color 0.25s ease, background-color 0.3s ease, flex-grow 0.3s cubic-bezier(0.2, 0, 0, 1);
+  transition: color var(--dur-sm) var(--ease-standard), background-color var(--dur-sm) var(--ease-standard), flex-grow var(--dur-md) var(--ease-decel);
 }
 .nav-icon-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
 .nav-icon-wrap .pp-icon { position: relative; z-index: 2; }
 .nav-indicator {
   position: absolute; inset: 0; border-radius: 100px; background: transparent;
   opacity: 0; transform: scale(0.6); z-index: 1;
-  transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1), opacity 0.25s ease, background-color 0.25s ease;
+  transition: transform var(--dur-md) var(--ease-decel), opacity var(--dur-sm) var(--ease-standard), background-color var(--dur-sm) var(--ease-standard);
 }
 .nav-label {
   font-size: 11px; font-weight: 500; color: inherit;
   white-space: nowrap; overflow: hidden; max-width: 72px;
-  transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+  transition: color var(--dur-sm) var(--ease-standard), opacity var(--dur-sm) var(--ease-standard);
 }
 
 /* ---------- BOTTOM BAR (default) — M3 Navigation Bar ---------- */
@@ -620,7 +694,8 @@ html[data-nav="bar"] .bottom-navigation {
   height: calc(80px + var(--window-inset-bottom, 0px));
   padding: 8px 8px calc(12px + var(--window-inset-bottom, 0px));
   background: var(--app-surface);
-  box-shadow: 0 -1px 0 var(--app-hairline);
+  /* Task 27: garis hairline di atas nav dihapus (owner order) — pemisahan
+     cukup lewat beda warna surface vs bg, tanpa garis putih */
 }
 html[data-nav="bar"] .nav-button { flex: 1; gap: 6px; border-radius: 100px; }
 html[data-nav="bar"] .nav-icon-wrap { width: 64px; height: 36px; }
@@ -628,7 +703,7 @@ html[data-nav="bar"] .nav-icon-wrap .pp-icon { font-size: 24px; }
 /* M3E: indikator lebih besar + ikon aktif membesar dengan spring */
 html[data-nav="bar"] .nav-indicator {
   background: var(--app-secondary-container);
-  transition: transform var(--dur-press) var(--ease-spring), opacity 0.25s ease, background-color 0.25s ease;
+  transition: transform var(--dur-press) var(--ease-spring), opacity var(--dur-sm) var(--ease-standard), background-color var(--dur-sm) var(--ease-standard);
 }
 html[data-nav="bar"] .nav-button.active .nav-indicator { opacity: 1; transform: scale(1); }
 html[data-nav="bar"] .nav-button.active { color: var(--app-on-secondary-container); }
@@ -640,17 +715,21 @@ html[data-nav="bar"] .nav-button.active .material-symbols-outlined {
 }
 
 /* ---------- FLOATING (BUBBLE) — M3E ---------- */
+/* Task 28: presisi pil floating — bar 64px (tombol 48px = touch target M3),
+   ikon 24px KONSTAN di semua state (tanpa grow 28px), tombol tidak-aktif
+   lebar tetap 48px, aktif = pil primary berisi ikon + label 14/600.
+   Elevasi memakai --elev-float-nav agar pil terpisah tegas dari konten. */
 html[data-nav="floating"] .bottom-navigation {
   bottom: calc(16px + var(--window-inset-bottom, 0px));
-  height: 60px; padding: 8px; gap: 4px;
+  height: 64px; padding: 8px; gap: 4px;
   background: var(--app-surface-2);
   border-radius: 100px;
-  box-shadow: var(--elev-float);
+  box-shadow: var(--elev-float-nav);
   max-width: calc(100vw - 24px);
 }
 html[data-nav="floating"] .nav-button {
-  flex-direction: row; border-radius: 100px; height: 44px;
-  justify-content: center; flex: 0 0 auto; min-width: 44px;
+  flex-direction: row; border-radius: 100px; height: 48px;
+  justify-content: center; flex: 0 1 48px; min-width: 40px;
 }
 html[data-nav="floating"] .nav-icon-wrap { width: 24px; height: 24px; }
 html[data-nav="floating"] .nav-icon-wrap .pp-icon { font-size: 24px; }
@@ -660,7 +739,7 @@ html[data-nav="floating"] .nav-label {
 }
 html[data-nav="floating"] .nav-button.active {
   background: var(--app-primary); color: var(--app-on-primary);
-  flex-grow: 1.6; padding: 0 18px;
+  flex: 0 0 auto; padding: 0 18px;
 }
 html[data-nav="floating"] .nav-button.active .nav-label {
   max-width: 120px; opacity: 1; margin-inline-start: 8px;
@@ -670,30 +749,42 @@ html[data-nav="floating"] .nav-button.active .material-symbols-outlined {
 }
 html[data-nav="floating"] .nav-button:active { transform: scale(0.92); }
 
-/* M3E: buka-tutup label aktif pakai spring overshoot, ikon aktif membesar */
+/* M3E: buka-tutup label aktif pakai spring overshoot; ukuran ikon tetap */
 html[data-nav="floating"] .nav-button {
-  transition: color 0.25s ease, background-color 0.25s ease,
-              flex-grow var(--dur-press) var(--ease-spring),
+  transition: color var(--dur-sm) var(--ease-standard), background-color var(--dur-sm) var(--ease-standard),
+              flex-basis var(--dur-press) var(--ease-spring),
               transform var(--dur-press) var(--ease-spring);
 }
 html[data-nav="floating"] .nav-label {
   transition: max-width var(--dur-press) var(--ease-spring),
-              margin var(--dur-press) var(--ease-spring), opacity 0.25s ease;
+              margin var(--dur-press) var(--ease-spring), opacity var(--dur-sm) var(--ease-standard);
 }
-html[data-nav="floating"] .nav-icon-wrap .pp-icon {
-  transition: font-size var(--dur-press) var(--ease-spring);
-}
-html[data-nav="floating"] .nav-button.active .nav-icon-wrap .pp-icon { font-size: 28px; }
 html[data-nav="floating"] .nav-button.active .material-symbols-outlined {
   font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
 }
+
+/* Task 29: GANTI MODE NAVIGASI (bar <-> floating) = fade-through M3.
+   Geometri dua mode tidak saling interpolabel (left/right/width/transform),
+   jadi pil memudar singkat (120ms accel) lalu masuk kembali dengan decel
+   (250ms) — bukan snap. Kelas diatur JS (applyNav); reduced-motion = instan. */
+.bottom-navigation.nav-mode-out {
+  opacity: 0;
+  transition: opacity 0.12s var(--ease-accel),
+              transform 0.12s var(--ease-accel);
+}
+html[data-nav="bar"] .bottom-navigation.nav-mode-out { transform: scale(0.96); }
+html[data-nav="floating"] .bottom-navigation.nav-mode-out { transform: translateX(-50%) scale(0.96); }
+html[data-nav="bar"] .bottom-navigation.nav-mode-in { animation: navModeInBar 0.25s var(--ease-decel); }
+html[data-nav="floating"] .bottom-navigation.nav-mode-in { animation: navModeInFloat 0.25s var(--ease-decel); }
+@keyframes navModeInBar   { from { opacity: 0; transform: scale(0.96); } }
+@keyframes navModeInFloat { from { opacity: 0; transform: translateX(-50%) scale(0.96); } }
 
 /* === ICON BUTTON === */
 .icon-button {
   background: transparent; border: none; color: var(--app-on-surface);
   width: 44px; height: 44px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.1s ease; flex-shrink: 0;
+  transition: background-color var(--dur-sm) var(--ease-standard), transform var(--dur-xs) var(--ease-standard); flex-shrink: 0;
 }
 .icon-button:active { background-color: color-mix(in srgb, var(--app-on-surface) 8%, transparent); transform: scale(0.95); }
 .icon-button .pp-icon { font-size: 23px; }
@@ -704,20 +795,29 @@ html[data-nav="floating"] .nav-button.active .material-symbols-outlined {
 .dialog-scrim, .info-dialog-scrim, .sheet-scrim {
   position: fixed; inset: 0;
   background-color: var(--scrim-color);
-  opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+  opacity: 0; pointer-events: none;
+  /* Task 29: tutup (exit) = accel pendek */
+  transition: opacity 0.2s var(--ease-accel);
   display: flex; align-items: center; justify-content: center;
   z-index: 2000;
 }
-.dialog-scrim.active, .info-dialog-scrim.active, .sheet-scrim.active { opacity: 1; pointer-events: auto; }
+.dialog-scrim.active, .info-dialog-scrim.active, .sheet-scrim.active {
+  opacity: 1; pointer-events: auto;
+  /* Task 29: buka (enter) = standard sedikit lebih panjang */
+  transition: opacity var(--dur-md) var(--ease-standard);
+}
 
 .dialog-container {
   background-color: var(--app-surface-2);
   border-radius: var(--shape-dialog); width: 85%; max-width: 360px;
   padding: 22px; transform: translateY(16px) scale(0.96);
-  transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+  transition: transform 0.2s var(--ease-accel);   /* Task 29: exit */
   box-shadow: var(--elev-float);
 }
-.dialog-scrim.active .dialog-container { transform: translateY(0) scale(1); }
+.dialog-scrim.active .dialog-container {
+  transform: translateY(0) scale(1);
+  transition: transform var(--dur-md) var(--ease-decel);   /* Task 29: enter */
+}
 .dialog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
 .dialog-title { font-size: 19px; font-weight: 600; color: var(--app-on-surface); margin: 0; }
 
@@ -727,7 +827,7 @@ html[data-nav="floating"] .nav-button.active .material-symbols-outlined {
   background-color: var(--app-surface-2);
   color: var(--app-on-surface); font-size: 15px; font-weight: 500;
   display: flex; justify-content: space-between; align-items: center;
-  cursor: pointer; transition: all 0.2s ease; border: none;
+  cursor: pointer; transition: background-color var(--dur-sm) var(--ease-standard), color var(--dur-sm) var(--ease-standard), transform 0.15s var(--ease-standard); border: none;
   border-radius: 100px;
 }
 .language-option.selected {
@@ -745,10 +845,13 @@ html[data-nav="floating"] .nav-button.active .material-symbols-outlined {
   background-color: var(--app-surface-2);
   border-radius: var(--shape-dialog); width: 88%; max-width: 380px;
   padding: 24px; transform: translateY(16px) scale(0.96);
-  transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+  transition: transform 0.2s var(--ease-accel);   /* Task 29: exit */
   box-shadow: var(--elev-float); text-align: center;
 }
-.info-dialog-scrim.active .info-dialog-container { transform: translateY(0) scale(1); }
+.info-dialog-scrim.active .info-dialog-container {
+  transform: translateY(0) scale(1);
+  transition: transform var(--dur-md) var(--ease-decel);   /* Task 29: enter */
+}
 .info-dialog-icon {
   width: 64px; height: 64px; margin: 0 auto 16px auto;
   display: flex; align-items: center; justify-content: center;
@@ -775,11 +878,14 @@ html[data-nav="floating"] .nav-button.active .material-symbols-outlined {
   background-color: var(--app-surface-2);
   border-radius: var(--shape-sheet) var(--shape-sheet) 0 0;
   transform: translateY(100%);
-  transition: transform 0.35s cubic-bezier(0.2, 0, 0, 1);
+  transition: transform 0.25s var(--ease-accel);   /* Task 29: exit */
   padding: 8px 10px calc(18px + var(--window-inset-bottom, 0px));
   box-shadow: var(--elev-float);
 }
-.sheet-scrim.active .sheet-container { transform: translateY(0); }
+.sheet-scrim.active .sheet-container {
+  transform: translateY(0);
+  transition: transform var(--dur-lg) var(--ease-decel);   /* Task 29: enter */
+}
 .sheet-grabber { width: 36px; height: 4px; border-radius: 4px; background: var(--app-on-surface-variant); opacity: 0.4; margin: 8px auto 12px; }
 .sheet-title { font-size: 16px; font-weight: 600; color: var(--app-on-surface); padding: 0 10px 10px; }
 .sheet-options { max-height: 56vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
@@ -788,7 +894,7 @@ html[data-nav="floating"] .nav-button.active .material-symbols-outlined {
 .picker-option {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 13px 16px; color: var(--app-on-surface); font-size: 15px; cursor: pointer;
-  transition: background-color 0.15s ease, border-radius var(--dur-press) var(--ease-spring);
+  transition: background-color var(--dur-sm) var(--ease-standard), border-radius var(--dur-press) var(--ease-spring);
   border-radius: 100px;
 }
 .picker-option.selected {
@@ -801,8 +907,13 @@ html[data-nav="floating"] .nav-button.active .material-symbols-outlined {
 .picker-option:active { background-color: color-mix(in srgb, var(--app-on-surface) 8%, transparent); border-radius: 14px; }
 
 /* === DISABLED & LOADING === */
+/* Dim konten SAJA (bukan bg row-card): v14 memudarkan baris di atas card
+   induk yang solid; pada slit-group luminegram bg baris milik baris itu
+   sendiri — memudarkan seluruh baris membuat kartu hilang ke dalam page */
 .pp-option.disabled-by-auto,
-.pp-inline-field.disabled-by-auto { opacity: 0.45; pointer-events: none; transition: opacity 0.3s ease; }
+.pp-inline-field.disabled-by-auto { pointer-events: none; }
+.pp-option.disabled-by-auto > *,
+.pp-inline-field.disabled-by-auto > * { opacity: 0.45; transition: opacity var(--dur-md) var(--ease-standard); }
 /* Catatan: style overlay boot (#loading-overlay) kini inline di index.html —
    agar tetap tampil benar walau stylesheet ini gagal dimuat. */
 
@@ -821,7 +932,7 @@ html[data-nav="floating"] .nav-button.active .material-symbols-outlined {
   outline: 2px solid var(--app-primary); outline-offset: 2px;
 }
 .pp-switch input:focus-visible + .pp-switch-slider {
-  outline: 2px solid var(--app-primary); outline-offset: 3px;
+  outline: 2px solid var(--lum-track-on); outline-offset: 3px;
 }
 
 /* Reduced motion: matikan spring & morph */
@@ -865,17 +976,16 @@ html[dir="rtl"] .device-info-item.identity .value { text-align: right; }
 html[dir="rtl"] .pp-select-value .pp-icon { margin-left: 0; margin-right: 2px; transform: scaleX(-1); }
 html[dir="rtl"] .option-arrow { transform: scaleX(-1); }
 
-/* RTL switch — mirror penuh geometri LTR (anchor kanan 4px,
-   checked -20px, pressed off +2px / on -18px, ikon kanan 16/36) */
-html[dir="rtl"] .pp-switch-slider::before { left: auto; right: 4px; }
-html[dir="rtl"] .pp-switch input:checked + .pp-switch-slider::before { transform: translate(-20px, -50%); }
-html[dir="rtl"] .pp-switch:active input:not(:checked) + .pp-switch-slider::before { transform: translate(2px, -50%); }
-html[dir="rtl"] .pp-switch:active input:checked + .pp-switch-slider::before { transform: translate(-18px, -50%); }
-html[dir="rtl"] .pp-switch-slider::after {
-  left: auto; right: 16px;
-  transform: translate(50%, -50%);
+/* RTL switch — mirror geometri luminegram (anchor kanan 7px,
+   checked right 22px size 20px, pressed off right 3px / on right 20px
+   size 24px; tanpa ikon) */
+html[dir="rtl"] .pp-switch-slider::before { left: auto; right: 7px; }
+html[dir="rtl"] .pp-switch input:checked + .pp-switch-slider::before {
+  width: 20px; height: 20px; right: 22px; left: auto; transform: translate(0, -50%);
 }
-html[dir="rtl"] .pp-switch input:checked + .pp-switch-slider::after {
-  left: auto; right: 36px;
-  transform: translate(50%, -50%);
+html[dir="rtl"] .pp-switch:active input:not(:checked) + .pp-switch-slider::before {
+  width: 24px; height: 24px; right: 3px; left: auto; transform: translate(0, -50%);
+}
+html[dir="rtl"] .pp-switch:active input:checked + .pp-switch-slider::before {
+  width: 24px; height: 24px; right: 20px; left: auto; transform: translate(0, -50%);
 }
